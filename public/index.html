@@ -1,0 +1,1644 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fabula</title>
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#f4f5f5; --surface:#ffffff; --surface-2:#ececee; --text:#17191c; --text-2:#6b7075;
+    --border:#e1e2e4; --primary:#0e8c7f; --primary-weak:#dcefeb; --on-primary:#ffffff; --danger:#d2473d;
+    --shadow:0 1px 2px rgba(20,25,30,.05);
+    --radius:5px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#131517; --surface:#1b1e20; --surface-2:#24282b; --text:#e9eaeb; --text-2:#9aa0a4;
+    --border:#30353a; --primary:#15a394; --primary-weak:#10302b; --on-primary:#06201c; --danger:#ff6b6f;
+    --shadow:0 1px 3px rgba(0,0,0,.45);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#131517; --surface:#1b1e20; --surface-2:#24282b; --text:#e9eaeb; --text-2:#9aa0a4;
+      --border:#30353a; --primary:#15a394; --primary-weak:#10302b; --on-primary:#06201c; --danger:#ff6b6f;
+      --shadow:0 1px 3px rgba(0,0,0,.45);
+    }
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5}
+  button{font-family:inherit;cursor:pointer}
+  input,textarea,select{font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);
+    border:1px solid var(--border);border-radius:4px;padding:8px 10px;width:100%}
+  textarea{resize:vertical;min-height:70px;line-height:1.55}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--primary);outline-offset:-1px;border-color:transparent}
+
+  /* ---- header ---- */
+  header{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:10px;padding:10px 14px;flex-wrap:wrap}
+  .logo{font-weight:800;font-size:17px;letter-spacing:.3px;display:flex;align-items:center;gap:7px}
+  .logo .mark{width:22px;height:22px;border-radius:3px;background:var(--primary);
+    display:inline-block}
+  .spacer{flex:1}
+  .proj-select{max-width:230px}
+  .btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:4px;
+    padding:8px 12px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .btn:hover{background:var(--surface-2)}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.icon{padding:8px;width:36px;justify-content:center}
+  .btn.subtle{border-color:transparent;background:transparent;color:var(--text-2)}
+  .btn.subtle:hover{background:var(--surface-2);color:var(--text)}
+  .btn.danger{color:var(--danger);border-color:var(--danger)}
+
+  /* ---- nav ---- */
+  nav.tabs{display:flex;gap:4px;padding:8px 14px 0;background:var(--surface);border-bottom:1px solid var(--border);
+    position:sticky;top:55px;z-index:15;overflow-x:auto}
+  nav.tabs button{border:none;background:none;color:var(--text-2);padding:9px 14px;font-size:14px;font-weight:600;
+    border-bottom:2.5px solid transparent;white-space:nowrap}
+  nav.tabs button.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+  main{max-width:1100px;margin:0 auto;padding:18px 16px 80px}
+  .view-head{display:flex;align-items:center;gap:10px;margin:4px 0 16px;flex-wrap:wrap}
+  .view-head h2{font-size:18px;margin:0}
+  .muted{color:var(--text-2)}
+  .empty{text-align:center;color:var(--text-2);padding:60px 16px}
+  .empty .big{font-size:15px;margin-bottom:14px}
+
+  /* ---- cards grid (characters) ---- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
+    overflow:hidden;cursor:pointer;transition:transform .08s}
+  .card:hover{transform:translateY(-2px)}
+  .char-top{display:flex;gap:11px;padding:13px}
+  .avatar{width:54px;height:54px;border-radius:5px;flex-shrink:0;object-fit:cover;background:var(--surface-2);
+    display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:20px}
+  .char-name{font-weight:700;font-size:15px}
+  .char-fields{font-size:12px;color:var(--text-2);margin-top:3px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+
+  /* ---- plot lanes ---- */
+  .lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;align-items:start}
+  .lane{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px}
+  .lane h3{margin:2px 4px 10px;font-size:14px;display:flex;align-items:center;gap:6px}
+  .lane h3 .dot{width:9px;height:9px;border-radius:50%}
+  .plot-card{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:10px;margin-bottom:8px}
+  .plot-card .t{font-weight:700;font-size:13.5px}
+  .plot-card .b{font-size:12.5px;color:var(--text-2);margin-top:4px;white-space:pre-wrap}
+  .plot-card .row{display:flex;gap:4px;margin-top:8px;justify-content:flex-end}
+  .mini{border:1px solid var(--border);background:var(--surface);border-radius:4px;padding:3px 7px;font-size:12px;color:var(--text-2)}
+  .mini:hover{background:var(--surface-2);color:var(--text)}
+  .add-card{width:100%;border:1px dashed var(--border);background:transparent;color:var(--text-2);border-radius:5px;padding:9px;font-size:13px;font-weight:600}
+  .add-card:hover{border-color:var(--primary);color:var(--primary)}
+
+  /* ---- world ---- */
+  .world-cat{margin-bottom:22px}
+  .world-cat h3{font-size:14px;color:var(--primary);border-bottom:1px solid var(--border);padding-bottom:6px;margin:0 0 10px}
+  .world-item{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:12px;margin-bottom:9px}
+  .world-item .t{font-weight:700;font-size:14px}
+  .world-item .b{font-size:13px;color:var(--text-2);margin-top:4px;white-space:pre-wrap}
+  .world-item .row{display:flex;gap:4px;margin-top:8px;justify-content:flex-end}
+
+  /* ---- relations ---- */
+  .rel-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  #relSvg{width:100%;height:420px;display:block;touch-action:none;user-select:none;-webkit-user-select:none;background:
+    radial-gradient(circle at 1px 1px,var(--border) 1px,transparent 0) 0 0/22px 22px}
+  .rel-node{cursor:grab}
+  .rel-node:active{cursor:grabbing}
+  .rel-list{margin-top:14px;display:flex;flex-direction:column;gap:7px}
+  .rel-row{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+    border-radius:5px;padding:9px 11px;font-size:13.5px}
+  .rel-row .lbl{flex:1;color:var(--text-2)}
+
+  /* ---- timeline ---- */
+  .timeline{margin-top:4px}
+  .tl-item{display:flex;gap:12px;align-items:stretch}
+  .tl-when{flex:0 0 96px;text-align:right;font-size:12px;font-weight:700;color:var(--primary);padding-top:12px;word-break:break-word}
+  .tl-mid{position:relative;flex:0 0 16px}
+  .tl-mid::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--border);transform:translateX(-50%)}
+  .tl-item:first-child .tl-mid::before{top:14px}
+  .tl-item:last-child .tl-mid::before{bottom:calc(100% - 14px)}
+  .tl-dot{position:absolute;left:50%;top:14px;width:12px;height:12px;border-radius:50%;background:var(--primary);
+    transform:translateX(-50%);border:2px solid var(--surface);z-index:1}
+  .tl-card{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:11px 12px;margin-bottom:10px}
+  .tl-card .t{font-weight:700;font-size:14px}
+  .tl-card .b{font-size:13px;color:var(--text-2);margin-top:4px;white-space:pre-wrap}
+  .tl-chars{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .tl-chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;background:var(--surface-2);
+    border:1px solid var(--border);border-radius:3px;padding:2px 9px 2px 6px}
+  .tl-chip .cd{width:9px;height:9px;border-radius:50%}
+  .tl-card .row{display:flex;gap:4px;margin-top:8px;justify-content:flex-end}
+  .char-check{display:flex;flex-wrap:wrap;gap:6px}
+  .char-check label{display:inline-flex;align-items:center;gap:5px;font-size:13px;border:1px solid var(--border);
+    border-radius:3px;padding:4px 10px;cursor:pointer}
+  .char-check input{width:auto}
+  .char-check input:checked + span{font-weight:700;color:var(--primary)}
+
+  /* ---- modal ---- */
+  @keyframes ovFade{from{opacity:0}to{opacity:1}}
+  @keyframes mdPop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+  .overlay{position:fixed;inset:0;background:rgba(10,14,25,.5);z-index:70;display:flex;align-items:center;
+    justify-content:center;padding:16px;animation:ovFade .14s ease-out}
+  .modal{background:var(--surface);border-radius:6px;box-shadow:var(--shadow);width:100%;max-width:540px;
+    max-height:90vh;overflow:auto;padding:20px;animation:mdPop .18s cubic-bezier(.2,.7,.3,1)}
+  @media (prefers-reduced-motion: reduce){ *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important} }
+  .modal h3{margin:0 0 16px;font-size:17px}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:5px}
+  .field-row{display:flex;gap:7px;margin-bottom:7px;align-items:center}
+  .field-row input:first-child{flex:0 0 34%}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+  /* ---- ☰ menu (account) ---- */
+  .menu-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}
+  .menu-title{font-size:12px;font-weight:700;color:var(--text-2)}
+  .menu-x{border:none;background:none;color:var(--text-2);font-size:15px;line-height:1;padding:5px;border-radius:4px}
+  .menu-x:hover{background:var(--surface-2);color:var(--text)}
+  .menu-acct{display:flex;align-items:center;gap:12px}
+  .menu-avatar{width:42px;height:42px;border-radius:5px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    font-weight:800;color:var(--on-primary);font-size:16px;background:var(--primary)}
+  .menu-avatar.guest{background:var(--surface-2);color:var(--text-2)}
+  .menu-acct-txt{flex:1;min-width:0}
+  .menu-acct-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .menu-acct-sub{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:5px;margin-top:2px}
+  .menu-sep{height:1px;background:var(--border);margin:15px 0}
+  .menu-item{display:flex;align-items:center;gap:10px;width:100%;border:none;background:none;color:var(--text);
+    padding:10px;border-radius:5px;font-size:14px;font-weight:600;text-align:left}
+  .menu-item:hover{background:var(--surface-2)}
+  .menu-item.danger{color:var(--danger)}
+  .menu-item.danger:hover{background:rgba(229,72,77,.12)}
+  /* ---- manuscript (原稿) ---- */
+  .ms-wrap{display:flex;gap:14px;align-items:flex-start}
+  .ms-side{flex:0 0 212px;display:flex;flex-direction:column;gap:8px}
+  .ms-chaps{display:flex;flex-direction:column;gap:5px}
+  .ms-chap{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:5px;
+    background:var(--surface);padding:8px 9px;cursor:pointer}
+  .ms-chap.active{border-color:var(--primary);background:var(--primary-weak)}
+  .ms-chap-main{flex:1;min-width:0}
+  .ms-chap-title{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ms-chap-count{font-size:11px;color:var(--text-2);margin-top:1px}
+  .ms-chap-ord{display:flex;flex-direction:column;gap:2px}
+  .ms-chap-ord .mini{padding:0 5px;font-size:9px;line-height:1.5}
+  .ms-editor{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+  .ms-title{font-size:16px;font-weight:700}
+  .ms-body{min-height:58vh;line-height:1.9;font-size:15px}
+  .ms-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-2px}
+  .ms-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ck{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500;color:var(--text);margin-bottom:7px}
+  .ck input{width:auto}
+  /* ---- memo ---- */
+  .memo-list{display:flex;flex-direction:column;gap:12px}
+  .memo-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 13px}
+  .memo-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .memo-title{flex:1;font-weight:700;font-size:15px;border:none;background:transparent;padding:4px 2px}
+  .memo-ord{display:flex;align-items:center;gap:3px;flex:0 0 auto}
+  .memo-body{min-height:92px;line-height:1.7;font-size:14px}
+  /* ---- search ---- */
+  .srch-results{max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:4px}
+  .srch-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:5px;padding:8px 10px}
+  .srch-item:hover{background:var(--surface-2)}
+  .srch-type{flex:0 0 auto;font-size:10.5px;font-weight:700;color:var(--primary);background:var(--primary-weak);border-radius:3px;padding:2px 7px}
+  .srch-label{flex:1;min-width:0;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* ---- tags ---- */
+  .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .tag{font-size:11px;font-weight:600;color:var(--primary);background:var(--primary-weak);border:1px solid transparent;
+    border-radius:3px;padding:2px 8px;cursor:pointer}
+  .tag:hover{border-color:var(--primary)}
+  .tagfilter{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-2);background:var(--surface-2);
+    border:1px solid var(--border);border-radius:5px;padding:7px 11px;margin-bottom:12px}
+  .char-top + .tags{padding:0 13px 12px}
+  .memo-tags{font-size:12.5px;margin-top:8px;border:none;background:transparent;padding:4px 2px;color:var(--text-2)}
+  /* ---- scenario (ゲームシナリオ) ---- */
+  .sc-head{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+  .sc-head .ms-title{flex:1}
+  .sc-cmds{display:flex;flex-direction:column;gap:6px;margin:4px 0 12px}
+  .sc-cmd{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);padding:8px 10px}
+  .sc-cmd-body{flex:1;min-width:0;font-size:13.5px;line-height:1.55;word-break:break-word}
+  .sc-cmd-ord{display:flex;align-items:center;gap:3px;flex:0 0 auto}
+  .sc-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;color:#fff;vertical-align:middle}
+  .sc-badge.line{background:var(--primary)} .sc-badge.narr{background:#8d8f94} .sc-badge.choice{background:#d98324}
+  .sc-badge.set{background:#8a6d3b} .sc-badge.if{background:#2f6fb3}
+  .sc-next{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+  .sc-next select{width:auto;min-width:150px}
+  .sc-face{color:var(--text-2);font-size:12px;margin:0 2px}
+  .sc-addbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .btn.mini2{padding:5px 9px;font-size:12px}
+  .sc-seq{display:flex;flex-direction:column;gap:6px}
+  .sc-choice-group{display:flex;flex-direction:column;gap:6px}
+  .sc-nest{margin-left:12px;padding-left:12px;border-left:2px solid var(--primary-weak);display:flex;flex-direction:column;gap:6px;margin-top:2px}
+  .sc-opt-head{font-size:12.5px;font-weight:700;color:var(--primary);margin-top:4px}
+  .flow-wrap{border:1px solid var(--border);border-radius:5px;background:var(--surface-2);padding:8px}
+  #flowSvg{width:100%;height:auto;display:block}
+  /* ---- 製本プレビュー ---- */
+  #bookOverlay{position:fixed;inset:0;z-index:60;background:#4a4f55;display:flex;flex-direction:column}
+  .book-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);
+    border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .book-pages{flex:1;overflow:auto;padding:24px;display:flex;flex-direction:column;align-items:center;gap:20px}
+  .book-page{position:relative;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.45);color:#111;flex:0 0 auto}
+  .bk-body{position:absolute;writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;overflow:hidden;
+    font-family:"Hiragino Mincho ProN","YuMincho","Yu Mincho",serif;line-break:strict;text-align:justify;color:#111}
+  .bk-body .bk-p{margin:0}
+  .bk-body .bk-chap{margin:0 0 1em;font-size:1.3em;font-weight:600}
+  .bk-body rt{font-size:.5em;font-weight:inherit;color:#111}
+  .bk-kashira{position:absolute;top:6mm;left:0;right:0;text-align:center;font-size:7pt;color:#666;
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif}
+  .bk-nombre{position:absolute;bottom:6mm;left:0;right:0;text-align:center;font-size:8pt;color:#333;
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif}
+  @media print{
+    header, nav.tabs, #main, #overlayHost{ display:none !important; }
+    #bookOverlay{ position:static !important; background:#fff !important; display:block !important; }
+    .book-bar{ display:none !important; }
+    .book-pages{ display:block !important; overflow:visible !important; padding:0 !important; }
+    .book-page{ box-shadow:none !important; margin:0 !important; break-after:page; }
+    .book-page:last-child{ break-after:auto; }
+  }
+  .ms-vert{writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;width:100%;height:60vh;overflow-x:auto;overflow-y:hidden;
+    border:1px solid var(--border);border-radius:5px;padding:18px;background:var(--surface);
+    font-size:17px;line-height:2;font-family:"Hiragino Mincho ProN","YuMincho","Yu Mincho",serif;text-align:justify}
+  .ms-vert p{margin:0 0 .2em}
+  .ms-vert rt{font-size:.5em;color:var(--text-2)}
+  @media (max-width:680px){ .ms-wrap{flex-direction:column} .ms-side{flex:none;width:100%} .ms-body{min-height:46vh} }
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+  .seg button{border:none;background:var(--surface);color:var(--text-2);padding:8px 14px;font-size:13px;font-weight:600}
+  .seg button.active{background:var(--primary);color:var(--on-primary)}
+  .swatch{display:flex;gap:6px;flex-wrap:wrap}
+  .swatch label{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+  .swatch input{display:none}
+  .swatch input:checked + span{outline:2px solid var(--text);outline-offset:2px}
+  .swatch span{display:block;width:26px;height:26px;border-radius:50%}
+  @media (max-width:520px){ .proj-select{max-width:140px} main{padding:14px 12px 80px} }
+  /* ---- auth chip ---- */
+  #authChip{display:none;align-items:center;gap:6px;max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--primary);flex:0 0 auto}
+  .sync-dot.saving{background:#f5a524}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"></span>Fabula</div>
+  <select class="proj-select" id="projSelect" title="作品を選択"></select>
+  <button class="btn" id="newProjBtn">＋ 作品</button>
+  <div class="spacer"></div>
+  <button class="btn" id="authChip"></button>
+  <button class="btn icon subtle" id="searchBtn" title="検索"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></button>
+  <button class="btn icon" id="menuBtn" title="メニュー">☰</button>
+</header>
+
+<nav class="tabs" id="tabs" hidden>
+  <button data-view="characters" class="active">キャラクター</button>
+  <button data-view="plot">プロット</button>
+  <button data-view="world">世界観</button>
+  <button data-view="relations">相関図</button>
+  <button data-view="timeline">タイムライン</button>
+  <button data-view="manuscript">原稿</button>
+  <button data-view="scenario">シナリオ</button>
+  <button data-view="memo">メモ</button>
+</nav>
+
+<main id="main"></main>
+
+<div id="overlayHost"></div>
+
+<div id="bookOverlay" hidden>
+  <div class="book-bar">
+    <b>製本プレビュー</b>
+    <span class="muted" id="bookInfo"></span>
+    <div class="spacer" style="flex:1"></div>
+    <button class="btn" id="bookSettingsBtn">設定</button>
+    <button class="btn primary" id="bookPrintBtn">PDFに保存 / 印刷</button>
+    <button class="btn" id="bookCloseBtn">閉じる</button>
+  </div>
+  <div class="book-pages" id="bookPrint"></div>
+</div>
+
+<script>
+"use strict";
+// ============================ 保存層（今はローカル。将来Firestoreに差し替え可能） ============================
+const STORE_KEY = "fabula:v1";
+const COLORS = ["#0e8c7f","#e5484d","#f5a524","#30a46c","#3b7dd8","#e93d82","#0091ff","#8d6e63","#12a594","#d6409f"];
+
+let state = load();
+function load(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY) || localStorage.getItem("storyforge:v1"); // 旧名(StoryForge)のデータも自動で引き継ぐ
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return { projects:[], currentId:null, data:{} };
+}
+function saveLocal(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){ alert("保存に失敗しました（容量超過かも）: "+e.message); } }
+function save(){ saveLocal(); queueSync(state.currentId); }   // ローカル保存＋（ログイン時）クラウド同期
+const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+function emptyProjectData(){ return { characters:[], plot:{structure:"kishoutenketsu",cards:[]}, world:[], relations:[], timeline:[], manuscript:{chapters:[]}, scenario:{scenes:[],vars:[]}, memos:[] }; }
+function cur(){ return state.data[state.currentId]; }
+function curProject(){ return state.projects.find(p=>p.id===state.currentId); }
+
+let currentView = "characters";
+
+// ============================ 画像: アップロード時に縮小してdataURL化（localStorage肥大を防ぐ） ============================
+function fileToSmallDataUrl(file, max=320){
+  return new Promise((res,rej)=>{
+    const img = new Image(); const fr = new FileReader();
+    fr.onload = ()=>{ img.onload = ()=>{
+      const sc = Math.min(1, max/Math.max(img.width,img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width*sc); c.height = Math.round(img.height*sc);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      res(c.toDataURL("image/jpeg",0.82));
+    }; img.onerror=rej; img.src = fr.result; };
+    fr.onerror=rej; fr.readAsDataURL(file);
+  });
+}
+function esc(s){ return (s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
+
+// ============================ プロジェクト ============================
+function renderProjectBar(){
+  const sel = document.getElementById("projSelect");
+  sel.innerHTML = state.projects.map(p=>`<option value="${p.id}">${esc(p.title)}</option>`).join("")
+    || `<option disabled selected>作品がありません</option>`;
+  if(state.currentId) sel.value = state.currentId;
+  const p = curProject();
+  document.getElementById("tabs").hidden = !p;
+}
+function switchProject(id){ state.currentId=id; _tagFilter=null; save(); renderAll(); animateMain(); }
+
+function openProjectModal(){
+  openModal(`<h3>新しい作品</h3>
+    <div class="field"><label>タイトル</label><input id="pTitle" placeholder="作品名" autofocus></div>
+    <div class="modal-actions">
+      <button class="btn" data-close>キャンセル</button>
+      <button class="btn primary" id="pCreate">作成</button>
+    </div>`, (root)=>{
+      const create=()=>{
+        const title=root.querySelector("#pTitle").value.trim(); if(!title){alert("タイトルを入力してください");return;}
+        const id=uid(); state.projects.push({id,title,createdAt:Date.now()});
+        state.data[id]=emptyProjectData(); state.currentId=id; save(); closeModal(); renderAll();
+      };
+      root.querySelector("#pCreate").onclick=create;
+      root.querySelector("#pTitle").addEventListener("keydown",e=>{ if(e.key==="Enter") create(); });
+    });
+}
+
+// ============================ 各ビュー描画 ============================
+// ---- アニメーション（prefers-reduced-motion 尊重） ----
+function prefersReduced(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
+function flashIn(el){ if(!el||prefersReduced())return; el.animate([{opacity:0,transform:'translateY(-5px)'},{opacity:1,transform:'none'}],{duration:220,easing:'cubic-bezier(.2,.7,.3,1)'}); }
+function animateMain(){ if(prefersReduced())return; const m=document.getElementById("main"); if(m) m.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:180,easing:'ease-out'}); }
+let _flashId=null;
+function applyFlash(){ if(!_flashId)return; const id=_flashId; _flashId=null; const el=document.querySelector('[data-id="'+id+'"]'); flashIn(el); }
+
+// ---- タグ（キャラ/世界観/プロット/メモ） ----
+let _tagFilter=null;
+function parseTags(s){ return (s||"").split(/[,、\s]+/).map(t=>t.trim()).filter(Boolean); }
+function tagChipsHtml(tags){ return (tags&&tags.length)? `<div class="tags">${tags.map(t=>`<span class="tag" data-tag="${esc(t)}">${esc(t)}</span>`).join("")}</div>` : ""; }
+function tagMatch(item){ return !_tagFilter || (item.tags||[]).includes(_tagFilter); }
+function tagFilterBarHtml(){ return _tagFilter? `<div class="tagfilter"><span>タグ「${esc(_tagFilter)}」で絞り込み中</span><button class="mini" id="clearTagF">✕ 解除</button></div>` : ""; }
+function wireTags(scope){ (scope||document).querySelectorAll(".tag").forEach(el=>{ el.onclick=e=>{ e.stopPropagation(); _tagFilter=el.dataset.tag; renderView(); }; });
+  const b=document.getElementById("clearTagF"); if(b) b.onclick=()=>{ _tagFilter=null; renderView(); }; }
+
+function renderAll(){ renderProjectBar(); renderView(); }
+function renderView(){
+  const main=document.getElementById("main");
+  if(!curProject()){
+    main.innerHTML=`<div class="empty"><div class="big">まだ作品がありません</div>
+      <button class="btn primary" onclick="openProjectModal()">＋ 最初の作品を作る</button></div>`;
+    return;
+  }
+  ({characters:renderCharacters, plot:renderPlot, world:renderWorld, relations:renderRelations, timeline:renderTimeline, manuscript:renderManuscript, scenario:renderScenario, memo:renderMemos}[currentView])(main);
+  applyFlash();
+}
+
+// ---- キャラクター ----
+function renderCharacters(main){
+  const list=cur().characters.filter(tagMatch);
+  main.innerHTML=`<div class="view-head"><h2>キャラクター</h2><span class="muted">${list.length}人</span>
+    <div class="spacer" style="flex:1"></div><button class="btn primary" id="addChar">＋ キャラ追加</button></div>
+    ${tagFilterBarHtml()}
+    ${list.length? `<div class="grid" id="charGrid"></div>` :
+      `<div class="empty">${_tagFilter?'このタグのキャラはいません':'キャラクターを追加しましょう'}</div>`}`;
+  document.getElementById("addChar").onclick=()=>editCharacter(null);
+  const grid=document.getElementById("charGrid");
+  if(grid){ grid.innerHTML=list.map(c=>{
+    const fields=(c.fields||[]).filter(f=>f.k||f.v).map(f=>`${esc(f.k)}: ${esc(f.v)}`).join(" / ");
+    const av=c.image?`<img class="avatar" src="${c.image}" alt="">`
+      :`<div class="avatar" style="background:${c.color||'#888'}">${esc((c.name||"?").slice(0,1))}</div>`;
+    return `<div class="card" data-id="${c.id}"><div class="char-top">${av}
+      <div style="min-width:0"><div class="char-name">${esc(c.name||"(無名)")}</div>
+      <div class="char-fields">${fields||"<span class='muted'>項目なし</span>"}</div></div></div>${tagChipsHtml(c.tags)}</div>`;
+  }).join("");
+    grid.querySelectorAll(".card").forEach(el=>el.onclick=()=>editCharacter(el.dataset.id));
+  }
+  wireTags(main);
+}
+function editCharacter(id){
+  const c = id? cur().characters.find(x=>x.id===id) : {id:uid(),name:"",color:COLORS[cur().characters.length%COLORS.length],image:"",fields:[{k:"年齢",v:""},{k:"性格",v:""}],tags:[]};
+  const fieldsHtml = (c.fields.length?c.fields:[{k:"",v:""}]).map((f,i)=>fieldRow(f,i)).join("");
+  openModal(`<h3>${id?"キャラ編集":"キャラ追加"}</h3>
+    <div class="field"><label>名前</label><input id="cName" value="${esc(c.name)}" placeholder="キャラクター名"></div>
+    <div class="field"><label>タグ（カンマ区切り）</label><input id="cTags" value="${esc((c.tags||[]).join(', '))}" placeholder="例: 主人公, 脇役"></div>
+    <div class="field"><label>色</label><div class="swatch" id="cColor">${COLORS.map(col=>
+      `<label><input type="radio" name="col" value="${col}" ${col===c.color?"checked":""}><span style="background:${col}"></span></label>`).join("")}</div></div>
+    <div class="field"><label>画像</label><input type="file" accept="image/*" id="cImg">
+      <div id="imgPrev" style="margin-top:8px">${c.image?`<img src="${c.image}" style="width:72px;height:72px;border-radius:5px;object-fit:cover">`:""}</div></div>
+    <div class="field"><label>項目（自由に追加できます）</label><div id="cFields">${fieldsHtml}</div>
+      <button class="mini" id="addField" style="margin-top:4px">＋ 項目追加</button></div>
+    <div class="modal-actions">
+      ${id?`<button class="btn danger" id="delChar">削除</button>`:""}
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" data-close>キャンセル</button>
+      <button class="btn primary" id="saveChar">保存</button>
+    </div>`, (root)=>{
+      let image=c.image;
+      root.querySelector("#cImg").onchange=async e=>{
+        const f=e.target.files[0]; if(!f)return;
+        image=await fileToSmallDataUrl(f);
+        root.querySelector("#imgPrev").innerHTML=`<img src="${image}" style="width:72px;height:72px;border-radius:5px;object-fit:cover">`;
+      };
+      root.querySelector("#addField").onclick=()=>{
+        const d=document.createElement("div"); d.innerHTML=fieldRow({k:"",v:""});
+        root.querySelector("#cFields").appendChild(d.firstElementChild); bindFieldRemovers(root);
+      };
+      bindFieldRemovers(root);
+      root.querySelector("#saveChar").onclick=()=>{
+        const name=root.querySelector("#cName").value.trim();
+        const color=(root.querySelector('input[name="col"]:checked')||{}).value||c.color;
+        const fields=[...root.querySelectorAll("#cFields .field-row")].map(r=>({
+          k:r.querySelector(".fk").value.trim(), v:r.querySelector(".fv").value.trim()
+        })).filter(f=>f.k||f.v);
+        const tags=parseTags(root.querySelector("#cTags").value);
+        const obj={id:c.id,name,color,image,fields,tags};
+        if(id){ const i=cur().characters.findIndex(x=>x.id===id); cur().characters[i]=obj; }
+        else { cur().characters.push(obj); _flashId=obj.id; }
+        save(); closeModal(); renderView();
+      };
+      if(id) root.querySelector("#delChar").onclick=()=>{
+        if(!confirm("このキャラを削除しますか？関連する相関図の線も消えます")) return;
+        cur().characters=cur().characters.filter(x=>x.id!==id);
+        cur().relations=cur().relations.filter(r=>r.from!==id&&r.to!==id);
+        save(); closeModal(); renderView();
+      };
+    });
+}
+function fieldRow(f){ return `<div class="field-row"><input class="fk" placeholder="項目名" value="${esc(f.k)}"><input class="fv" placeholder="内容" value="${esc(f.v)}"><button class="mini rm" title="削除">×</button></div>`; }
+function bindFieldRemovers(root){ root.querySelectorAll("#cFields .rm").forEach(b=>b.onclick=()=>{ b.closest(".field-row").remove(); }); }
+
+// ---- プロット ----
+const KISHO=[{k:"ki",label:"起",color:"#30a46c"},{k:"sho",label:"承",color:"#0091ff"},{k:"ten",label:"転",color:"#f5a524"},{k:"ketsu",label:"結",color:"#e5484d"}];
+function renderPlot(main){
+  const p=cur().plot;
+  main.innerHTML=`<div class="view-head"><h2>プロット</h2>
+    <div class="seg" id="plotStruct">
+      <button data-s="kishoutenketsu" class="${p.structure==='kishoutenketsu'?'active':''}">起承転結</button>
+      <button data-s="free" class="${p.structure==='free'?'active':''}">自由構成</button>
+    </div></div>${tagFilterBarHtml()}<div class="lanes" id="lanes"></div>`;
+  main.querySelector("#plotStruct").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b)return; p.structure=b.dataset.s; save(); renderView();
+  });
+  const lanes = p.structure==="kishoutenketsu"
+    ? KISHO.map(s=>({key:s.k,label:s.label,color:s.color}))
+    : [{key:"scene",label:"シーン / 場面",color:"#0e8c7f"}];
+  const host=document.getElementById("lanes");
+  host.innerHTML=lanes.map(l=>{
+    const cards=p.cards.filter(c=>c.section===l.key && tagMatch(c));
+    return `<div class="lane"><h3><span class="dot" style="background:${l.color}"></span>${l.label}</h3>
+      <div data-lane="${l.key}">${cards.map((c,i)=>plotCardHtml(c,i,cards.length)).join("")}</div>
+      <button class="add-card" data-add="${l.key}">＋ カード</button></div>`;
+  }).join("");
+  host.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>editPlotCard(null,b.dataset.add));
+  host.querySelectorAll(".plot-card").forEach(el=>{
+    el.querySelector(".edit").onclick=()=>editPlotCard(el.dataset.id);
+    el.querySelector(".up").onclick=()=>movePlotCard(el.dataset.id,-1);
+    el.querySelector(".down").onclick=()=>movePlotCard(el.dataset.id,1);
+  });
+  wireTags(main);
+}
+function plotCardHtml(c,i,n){ return `<div class="plot-card" data-id="${c.id}">
+  <div class="t">${esc(c.title||"(無題)")}</div>${c.body?`<div class="b">${esc(c.body)}</div>`:""}
+  ${tagChipsHtml(c.tags)}
+  <div class="row"><button class="mini up" ${i===0?"disabled":""}>▲</button>
+  <button class="mini down" ${i===n-1?"disabled":""}>▼</button>
+  <button class="mini edit">編集</button></div></div>`; }
+function movePlotCard(id,dir){
+  const p=cur().plot; const card=p.cards.find(c=>c.id===id);
+  const sec=p.cards.filter(c=>c.section===card.section);
+  const idx=sec.indexOf(card); const swap=sec[idx+dir]; if(!swap)return;
+  const a=p.cards.indexOf(card), b=p.cards.indexOf(swap);
+  [p.cards[a],p.cards[b]]=[p.cards[b],p.cards[a]]; save(); renderView();
+}
+function editPlotCard(id,section){
+  const c = id? cur().plot.cards.find(x=>x.id===id) : {id:uid(),section,title:"",body:"",tags:[]};
+  openModal(`<h3>${id?"カード編集":"カード追加"}</h3>
+    <div class="field"><label>タイトル</label><input id="pcT" value="${esc(c.title)}" placeholder="見出し"></div>
+    <div class="field"><label>内容</label><textarea id="pcB" placeholder="展開・メモ">${esc(c.body)}</textarea></div>
+    <div class="field"><label>タグ（カンマ区切り）</label><input id="pcTags" value="${esc((c.tags||[]).join(', '))}" placeholder="例: 伏線, 回収"></div>
+    <div class="modal-actions">${id?`<button class="btn danger" id="pcDel">削除</button>`:""}
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" data-close>キャンセル</button><button class="btn primary" id="pcSave">保存</button></div>`,
+    (root)=>{
+      root.querySelector("#pcSave").onclick=()=>{
+        c.title=root.querySelector("#pcT").value.trim(); c.body=root.querySelector("#pcB").value.trim(); c.tags=parseTags(root.querySelector("#pcTags").value);
+        if(!id){ cur().plot.cards.push(c); _flashId=c.id; } save(); closeModal(); renderView();
+      };
+      if(id) root.querySelector("#pcDel").onclick=()=>{ cur().plot.cards=cur().plot.cards.filter(x=>x.id!==id); save(); closeModal(); renderView(); };
+    });
+}
+
+// ---- 世界観 ----
+function renderWorld(main){
+  const list=cur().world.filter(tagMatch);
+  main.innerHTML=`<div class="view-head"><h2>世界観設定</h2><span class="muted">${list.length}件</span>
+    <div class="spacer" style="flex:1"></div><button class="btn primary" id="addWorld">＋ 項目追加</button></div>
+    ${tagFilterBarHtml()}<div id="worldHost"></div>`;
+  document.getElementById("addWorld").onclick=()=>editWorld(null);
+  const host=document.getElementById("worldHost");
+  if(!list.length){ host.innerHTML=`<div class="empty">${_tagFilter?'このタグの項目はありません':'地名・組織・用語・歴史などを整理しましょう'}</div>`; wireTags(main); return; }
+  const cats=[...new Set(list.map(w=>w.category||"その他"))];
+  host.innerHTML=cats.map(cat=>`<div class="world-cat"><h3>${esc(cat)}</h3>
+    ${list.filter(w=>(w.category||"その他")===cat).map(w=>`<div class="world-item" data-id="${w.id}">
+      <div class="t">${esc(w.title||"(無題)")}</div>${w.body?`<div class="b">${esc(w.body)}</div>`:""}
+      ${tagChipsHtml(w.tags)}
+      <div class="row"><button class="mini edit">編集</button></div></div>`).join("")}</div>`).join("");
+  host.querySelectorAll(".world-item .edit").forEach(b=>b.onclick=()=>editWorld(b.closest(".world-item").dataset.id));
+  wireTags(main);
+}
+function editWorld(id){
+  const w = id? cur().world.find(x=>x.id===id) : {id:uid(),category:"",title:"",body:"",tags:[]};
+  const cats=[...new Set(cur().world.map(x=>x.category).filter(Boolean))];
+  openModal(`<h3>${id?"項目編集":"項目追加"}</h3>
+    <div class="field"><label>カテゴリ</label><input id="wCat" list="catList" value="${esc(w.category)}" placeholder="地名 / 組織 / 用語 / 歴史 など">
+      <datalist id="catList">${cats.map(c=>`<option value="${esc(c)}">`).join("")}</datalist></div>
+    <div class="field"><label>タイトル</label><input id="wT" value="${esc(w.title)}" placeholder="名称"></div>
+    <div class="field"><label>説明</label><textarea id="wB" placeholder="設定の説明">${esc(w.body)}</textarea></div>
+    <div class="field"><label>タグ（カンマ区切り）</label><input id="wTags" value="${esc((w.tags||[]).join(', '))}" placeholder="例: 地名, 重要"></div>
+    <div class="modal-actions">${id?`<button class="btn danger" id="wDel">削除</button>`:""}
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" data-close>キャンセル</button><button class="btn primary" id="wSave">保存</button></div>`,
+    (root)=>{
+      root.querySelector("#wSave").onclick=()=>{
+        w.category=root.querySelector("#wCat").value.trim(); w.title=root.querySelector("#wT").value.trim(); w.body=root.querySelector("#wB").value.trim(); w.tags=parseTags(root.querySelector("#wTags").value);
+        if(!id){ cur().world.push(w); _flashId=w.id; } save(); closeModal(); renderView();
+      };
+      if(id) root.querySelector("#wDel").onclick=()=>{ cur().world=cur().world.filter(x=>x.id!==id); save(); closeModal(); renderView(); };
+    });
+}
+
+// ---- 相関図 ----
+function renderRelations(main){
+  const chars=cur().characters, rels=cur().relations;
+  main.innerHTML=`<div class="view-head"><h2>相関図</h2><span class="muted">${chars.length}人 / ${rels.length}本</span>
+    <div class="spacer" style="flex:1"></div>
+    <button class="btn primary" id="addRel" ${chars.length<2?"disabled":""}>＋ 関係を追加</button></div>
+    ${chars.length<2? `<div class="empty">キャラクターが2人以上いると相関図を作れます</div>` :
+    `<div class="rel-wrap"><svg id="relSvg" viewBox="0 0 800 420" preserveAspectRatio="xMidYMid meet"></svg></div>
+     <div class="rel-list" id="relList"></div>`}`;
+  const addBtn=document.getElementById("addRel"); if(addBtn) addBtn.onclick=()=>editRelation(null);
+  if(chars.length<2) return;
+  startRelSim(chars,rels);
+  document.getElementById("relList").innerHTML=rels.map(r=>{
+    const a=chars.find(c=>c.id===r.from), b=chars.find(c=>c.id===r.to);
+    if(!a||!b) return "";
+    return `<div class="rel-row" data-id="${r.id}"><b>${esc(a.name)}</b>
+      <span class="lbl">— ${esc(r.label||"関係")} →</span><b>${esc(b.name)}</b>
+      <button class="mini edit">編集</button></div>`;
+  }).join("") || `<div class="muted" style="text-align:center">まだ関係がありません</div>`;
+  document.querySelectorAll("#relList .edit").forEach(btn=>btn.onclick=()=>editRelation(btn.closest(".rel-row").dataset.id));
+}
+// 相関図：力学レイアウト（反発＋バネ＋減衰）＋ドラッグで「ふにふに」動く
+let _relSim=null;
+function startRelSim(chars,rels){
+  const svg=document.getElementById("relSvg"); if(!svg) return;
+  const W=800,H=420,cx=W/2,cy=H/2,R=Math.min(W,H)/2-70;
+  const nodes=chars.map((c,i)=>{ const a=-Math.PI/2+i*2*Math.PI/chars.length;
+    return { id:c.id, c, x:cx+R*Math.cos(a), y:cy+R*Math.sin(a), vx:0, vy:0 }; });
+  const nodeById={}; nodes.forEach(n=>nodeById[n.id]=n);
+  const edges=rels.map(r=>({from:nodeById[r.from], to:nodeById[r.to], label:r.label})).filter(e=>e.from&&e.to);
+  const sim={ svg, W,H,cx,cy, nodes, nodeById, edges, drag:null, dragX:0, dragY:0, reduced:prefersReduced() };
+  _relSim=sim;
+  setupRelDrag(sim);
+  if(sim.reduced){ for(let k=0;k<200;k++) stepRel(sim); drawRel(sim); }
+  else { const loop=()=>{ if(!document.body.contains(sim.svg)) return; stepRel(sim); drawRel(sim); requestAnimationFrame(loop); }; loop(); }
+}
+function stepRel(sim){
+  const nodes=sim.nodes, edges=sim.edges;
+  const REST=150, K_SPRING=0.015, K_REP=5400, K_CENTER=0.008, DAMP=0.86;
+  for(let i=0;i<nodes.length;i++){ const a=nodes[i];
+    for(let j=i+1;j<nodes.length;j++){ const b=nodes[j];
+      let dx=a.x-b.x, dy=a.y-b.y; let d2=dx*dx+dy*dy; if(d2<1){d2=1;dx=Math.random();dy=Math.random();}
+      const d=Math.sqrt(d2), f=K_REP/d2, fx=dx/d*f, fy=dy/d*f;
+      a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+    }
+  }
+  edges.forEach(e=>{ let dx=e.to.x-e.from.x, dy=e.to.y-e.from.y; const d=Math.hypot(dx,dy)||1;
+    const f=(d-REST)*K_SPRING, fx=dx/d*f, fy=dy/d*f;
+    e.from.vx+=fx; e.from.vy+=fy; e.to.vx-=fx; e.to.vy-=fy;
+  });
+  nodes.forEach(n=>{
+    if(sim.drag===n){ n.x=sim.dragX; n.y=sim.dragY; n.vx=0; n.vy=0; return; }
+    n.vx+=(sim.cx-n.x)*K_CENTER; n.vy+=(sim.cy-n.y)*K_CENTER;
+    n.vx*=DAMP; n.vy*=DAMP; n.x+=n.vx; n.y+=n.vy;
+    n.x=Math.max(26,Math.min(sim.W-26,n.x)); n.y=Math.max(26,Math.min(sim.H-40,n.y));
+  });
+}
+function drawRel(sim){
+  const R=24;
+  // 同じ2点間の複数関係（双方向など）はまとめて、重ならないよう左右に振り分ける
+  const groups={};
+  sim.edges.forEach(e=>{ const k=[e.from.id,e.to.id].sort().join('~'); (groups[k]=groups[k]||[]).push(e); });
+  const meta=new Map();
+  Object.entries(groups).forEach(([k,list])=>{
+    const [idA,idB]=k.split('~'); const A=sim.nodeById[idA], B=sim.nodeById[idB];
+    const dx=B.x-A.x, dy=B.y-A.y, d=Math.hypot(dx,dy)||1; const perp={x:-dy/d, y:dx/d};  // ペアで固定の垂直方向
+    list.forEach((e,i)=> meta.set(e,{i,n:list.length,perp}));
+  });
+  const defs=`<defs><marker id="rel-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--text-2)"/></marker></defs>`;
+  let edgesSvg="";
+  sim.edges.forEach(e=>{
+    const p=e.from, q=e.to; const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
+    const sx=p.x+ux*R, sy=p.y+uy*R, ex=q.x-ux*R, ey=q.y-uy*R;              // ノード縁で止めて矢印を見せる
+    const {i,n,perp}=meta.get(e); const off=(i-(n-1)/2)*26;
+    let mx,my;
+    if(!off){
+      edgesSvg+=`<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="var(--text-2)" stroke-width="1.5" opacity=".55" marker-end="url(#rel-arrow)"/>`;
+      mx=(sx+ex)/2; my=(sy+ey)/2;
+    } else {
+      const cx=(p.x+q.x)/2+perp.x*off*2, cy=(p.y+q.y)/2+perp.y*off*2;
+      edgesSvg+=`<path d="M${sx} ${sy} Q ${cx} ${cy} ${ex} ${ey}" fill="none" stroke="var(--text-2)" stroke-width="1.5" opacity=".55" marker-end="url(#rel-arrow)"/>`;
+      mx=(p.x+q.x)/2+perp.x*off; my=(p.y+q.y)/2+perp.y*off;
+    }
+    if(e.label){ const w=e.label.length*8+10;
+      edgesSvg+=`<rect x="${mx-w/2}" y="${my-9}" width="${w}" height="18" rx="4" fill="var(--surface)" stroke="var(--border)"/><text x="${mx}" y="${my+3}" text-anchor="middle" font-size="11" fill="var(--text)">${esc(e.label)}</text>`;
+    }
+  });
+  let nodesSvg="";
+  sim.nodes.forEach(n=>{ const c=n.c;
+    nodesSvg+=`<g class="rel-node" data-id="${n.id}"><circle cx="${n.x}" cy="${n.y}" r="22" fill="${c.color||'#888'}"/><text x="${n.x}" y="${n.y+4}" text-anchor="middle" font-size="13" font-weight="700" fill="#fff" style="pointer-events:none">${esc((c.name||"?").slice(0,2))}</text><text x="${n.x}" y="${n.y+38}" text-anchor="middle" font-size="12" fill="var(--text)" style="pointer-events:none">${esc(c.name)}</text></g>`;
+  });
+  sim.svg.innerHTML=defs+edgesSvg+nodesSvg;
+}
+function setupRelDrag(sim){
+  const svg=sim.svg;
+  const toSvg=(ev)=>{ const r=svg.getBoundingClientRect(); return { x:(ev.clientX-r.left)/r.width*sim.W, y:(ev.clientY-r.top)/r.height*sim.H }; };
+  svg.onpointerdown=(ev)=>{ const g=ev.target.closest('.rel-node'); if(!g)return; const n=sim.nodeById[g.dataset.id]; if(!n)return;
+    sim.drag=n; const p=toSvg(ev); sim.dragX=p.x; sim.dragY=p.y; try{svg.setPointerCapture(ev.pointerId);}catch(e){} ev.preventDefault(); };
+  svg.onpointermove=(ev)=>{ if(!sim.drag)return; const p=toSvg(ev); sim.dragX=p.x; sim.dragY=p.y;
+    if(sim.reduced){ sim.drag.x=p.x; sim.drag.y=p.y; for(let k=0;k<6;k++) stepRel(sim); drawRel(sim); } };
+  svg.onpointerup=svg.onpointercancel=()=>{ if(sim.reduced && sim.drag){ for(let k=0;k<60;k++) stepRel(sim); drawRel(sim); } sim.drag=null; };
+}
+function editRelation(id){
+  const chars=cur().characters;
+  const r = id? cur().relations.find(x=>x.id===id) : {id:uid(),from:chars[0].id,to:chars[1].id,label:""};
+  const opts=sel=>chars.map(c=>`<option value="${c.id}" ${c.id===sel?"selected":""}>${esc(c.name)}</option>`).join("");
+  openModal(`<h3>${id?"関係を編集":"関係を追加"}</h3>
+    <div class="field"><label>From</label><select id="rFrom">${opts(r.from)}</select></div>
+    <div class="field"><label>関係（ラベル）</label><input id="rLabel" value="${esc(r.label)}" placeholder="例: 親友 / 宿敵 / 師弟"></div>
+    <div class="field"><label>To</label><select id="rTo">${opts(r.to)}</select></div>
+    <div class="modal-actions">${id?`<button class="btn danger" id="rDel">削除</button>`:""}
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" data-close>キャンセル</button><button class="btn primary" id="rSave">保存</button></div>`,
+    (root)=>{
+      root.querySelector("#rSave").onclick=()=>{
+        r.from=root.querySelector("#rFrom").value; r.to=root.querySelector("#rTo").value; r.label=root.querySelector("#rLabel").value.trim();
+        if(r.from===r.to){alert("別のキャラを選んでください");return;}
+        if(!id){ cur().relations.push(r); _flashId=r.id; } save(); closeModal(); renderView();
+      };
+      if(id) root.querySelector("#rDel").onclick=()=>{ cur().relations=cur().relations.filter(x=>x.id!==id); save(); closeModal(); renderView(); };
+    });
+}
+
+// ---- タイムライン（年表・時系列） ----
+function renderTimeline(main){
+  if(!cur().timeline) cur().timeline=[];           // 既存データの移行（timeline未定義なら空配列）
+  const events=cur().timeline, chars=cur().characters;
+  main.innerHTML=`<div class="view-head"><h2>タイムライン</h2><span class="muted">${events.length}件</span>
+    <div class="spacer" style="flex:1"></div><button class="btn primary" id="addTl">＋ 出来事を追加</button></div>
+    ${events.length? `<div class="timeline" id="tlHost"></div>` :
+      `<div class="empty">作中で起きた出来事を時系列で並べましょう<br><span class="muted">（物語の順番＝プロット、実際の時系列＝ここ）</span></div>`}`;
+  document.getElementById("addTl").onclick=()=>editTimelineEvent(null);
+  const host=document.getElementById("tlHost");
+  if(!host) return;
+  host.innerHTML=events.map((ev,i)=>{
+    const chips=(ev.charIds||[]).map(cid=>{ const c=chars.find(x=>x.id===cid); if(!c)return"";
+      return `<span class="tl-chip"><span class="cd" style="background:${c.color||'#888'}"></span>${esc(c.name)}</span>`;}).join("");
+    return `<div class="tl-item" data-id="${ev.id}">
+      <div class="tl-when">${esc(ev.when||"")}</div>
+      <div class="tl-mid"><span class="tl-dot"></span></div>
+      <div class="tl-card">
+        <div class="t">${esc(ev.title||"(無題)")}</div>
+        ${ev.body?`<div class="b">${esc(ev.body)}</div>`:""}
+        ${chips?`<div class="tl-chars">${chips}</div>`:""}
+        <div class="row"><button class="mini up" ${i===0?"disabled":""}>▲</button>
+          <button class="mini down" ${i===events.length-1?"disabled":""}>▼</button>
+          <button class="mini edit">編集</button></div>
+      </div></div>`;
+  }).join("");
+  host.querySelectorAll(".tl-item").forEach(el=>{
+    const id=el.dataset.id;
+    el.querySelector(".edit").onclick=()=>editTimelineEvent(id);
+    el.querySelector(".up").onclick=()=>moveTimelineEvent(id,-1);
+    el.querySelector(".down").onclick=()=>moveTimelineEvent(id,1);
+  });
+}
+function moveTimelineEvent(id,dir){
+  const arr=cur().timeline; const i=arr.findIndex(e=>e.id===id); const j=i+dir;
+  if(j<0||j>=arr.length) return; [arr[i],arr[j]]=[arr[j],arr[i]]; save(); renderView();
+}
+function editTimelineEvent(id){
+  if(!cur().timeline) cur().timeline=[];
+  const chars=cur().characters;
+  const ev = id? cur().timeline.find(x=>x.id===id) : {id:uid(),when:"",title:"",body:"",charIds:[]};
+  const charChecks = chars.length? `<div class="char-check">${chars.map(c=>
+    `<label><input type="checkbox" value="${c.id}" ${(ev.charIds||[]).includes(c.id)?"checked":""}><span>${esc(c.name)}</span></label>`).join("")}</div>`
+    : `<div class="muted">キャラクターが未登録です</div>`;
+  openModal(`<h3>${id?"出来事を編集":"出来事を追加"}</h3>
+    <div class="field"><label>いつ（自由入力）</label><input id="tlWhen" value="${esc(ev.when)}"></div>
+    <div class="field"><label>タイトル</label><input id="tlTitle" value="${esc(ev.title)}" placeholder="出来事"></div>
+    <div class="field"><label>内容</label><textarea id="tlBody" placeholder="詳細・メモ">${esc(ev.body)}</textarea></div>
+    <div class="field"><label>登場キャラ（任意）</label>${charChecks}</div>
+    <div class="modal-actions">${id?`<button class="btn danger" id="tlDel">削除</button>`:""}
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" data-close>キャンセル</button><button class="btn primary" id="tlSave">保存</button></div>`,
+    (root)=>{
+      root.querySelector("#tlSave").onclick=()=>{
+        ev.when=root.querySelector("#tlWhen").value.trim();
+        ev.title=root.querySelector("#tlTitle").value.trim();
+        ev.body=root.querySelector("#tlBody").value.trim();
+        ev.charIds=[...root.querySelectorAll(".char-check input:checked")].map(c=>c.value);
+        if(!id){ cur().timeline.push(ev); _flashId=ev.id; } save(); closeModal(); renderView();
+      };
+      if(id) root.querySelector("#tlDel").onclick=()=>{
+        cur().timeline=cur().timeline.filter(x=>x.id!==id); save(); closeModal(); renderView();
+      };
+    });
+}
+
+// ---- 原稿（本文エディタ：章管理・文字数・縦書き＆ルビプレビュー） ----
+let _msCurrentChapter = null;
+function manuscript(){ const d=cur(); if(!d.manuscript) d.manuscript={chapters:[]}; return d.manuscript; }
+function msCountChars(body){   // 本文の文字数（ルビ記法のよみ・記号は除外、親文字はカウント）
+  let s = (body||"")
+    .replace(/｜([^《]+)《[^》]+》/g, '$1')
+    .replace(/([一-龠々〆ヵヶ]+)《[^》]+》/g, '$1');
+  return s.replace(/[\s　]/g,"").length;
+}
+
+function renderManuscript(main){
+  const ms = manuscript();
+  const chapters = ms.chapters;
+  if(chapters.length && (!_msCurrentChapter || !chapters.find(c=>c.id===_msCurrentChapter))) _msCurrentChapter = chapters[0].id;
+  if(!chapters.length) _msCurrentChapter = null;
+  const total = chapters.reduce((s,c)=>s+msCountChars(c.body),0);
+  main.innerHTML = `
+    <div class="view-head"><h2>原稿</h2><span class="muted">${chapters.length}章 / ${total.toLocaleString()}字</span>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" id="msBook">製本プレビュー</button></div>
+    <div class="ms-wrap">
+      <aside class="ms-side">
+        <div class="ms-chaps" id="msChaps"></div>
+        <button class="btn" id="msAdd" style="width:100%">＋ 章を追加</button>
+      </aside>
+      <section class="ms-editor" id="msEditor"></section>
+    </div>`;
+  document.getElementById("msAdd").onclick = addChapter;
+  document.getElementById("msBook").onclick = openBook;
+  renderChapterList();
+  renderChapterEditor();
+}
+function msHeadCount(){
+  const head=document.querySelector(".view-head .muted"); if(!head) return;
+  const ms=manuscript(); const total=ms.chapters.reduce((s,c)=>s+msCountChars(c.body),0);
+  head.textContent=`${ms.chapters.length}章 / ${total.toLocaleString()}字`;
+}
+function renderChapterList(){
+  const host = document.getElementById("msChaps"); if(!host) return;
+  const chapters = manuscript().chapters;
+  host.innerHTML = chapters.map((c,i)=>`
+    <div class="ms-chap ${c.id===_msCurrentChapter?'active':''}" data-id="${c.id}">
+      <div class="ms-chap-main">
+        <div class="ms-chap-title">${esc(c.title||'無題')}</div>
+        <div class="ms-chap-count">${msCountChars(c.body).toLocaleString()}字</div>
+      </div>
+      <div class="ms-chap-ord">
+        <button class="mini up" ${i===0?'disabled':''} title="上へ">▲</button>
+        <button class="mini down" ${i===chapters.length-1?'disabled':''} title="下へ">▼</button>
+      </div>
+    </div>`).join("") || `<div class="muted" style="padding:8px 4px;font-size:13px">章がありません</div>`;
+  host.querySelectorAll(".ms-chap").forEach(el=>{
+    const id=el.dataset.id;
+    el.querySelector(".ms-chap-main").onclick=()=>{ _msCurrentChapter=id; renderChapterList(); renderChapterEditor(); };
+    el.querySelector(".up").onclick=(e)=>{ e.stopPropagation(); moveChapter(id,-1); };
+    el.querySelector(".down").onclick=(e)=>{ e.stopPropagation(); moveChapter(id,1); };
+  });
+}
+function renderChapterEditor(){
+  const host=document.getElementById("msEditor"); if(!host) return;
+  const ch = manuscript().chapters.find(c=>c.id===_msCurrentChapter);
+  if(!ch){ host.innerHTML=`<div class="empty">章を追加して書き始めましょう</div>`; return; }
+  host.innerHTML = `
+    <div class="sc-head">
+      <input class="ms-title" id="msTitle" value="${esc(ch.title)}" placeholder="章のタイトル">
+      <button class="btn icon subtle" id="msMenu" title="その他">⋯</button>
+    </div>
+    <div class="ms-tools">
+      <button class="btn" id="msRuby">ルビ</button>
+    </div>
+    <textarea class="ms-body" id="msBody" placeholder="本文をここに書く…">${esc(ch.body)}</textarea>
+    <div class="ms-foot">
+      <span class="muted" id="msCount">${msCountChars(ch.body).toLocaleString()}字</span>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" id="msPreview">縦書きプレビュー</button>
+    </div>`;
+  const title=host.querySelector("#msTitle"), body=host.querySelector("#msBody");
+  title.oninput=()=>{ ch.title=title.value; saveLocal(); queueSync(state.currentId); queueChapterSync(state.currentId,ch.id); renderChapterList(); };
+  body.oninput=()=>{ ch.body=body.value; host.querySelector("#msCount").textContent=msCountChars(ch.body).toLocaleString()+"字"; scheduleBodySave(ch.id); };
+  host.querySelector("#msRuby").onclick=insertRubyModal;
+  host.querySelector("#msPreview").onclick=()=>previewVertical(ch);
+  host.querySelector("#msMenu").onclick=()=>openDeleteMenu("章の操作","この章を削除",()=>deleteChapter(ch.id));
+}
+function insertRubyModal(){
+  const ta=document.getElementById("msBody"); if(!ta) return;
+  const start=ta.selectionStart, end=ta.selectionEnd, sel=ta.value.slice(start,end), full=ta.value;
+  openModal(`<div class="menu-head"><span class="menu-title">ルビを振る</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <div class="field"><label>漢字（親文字）</label><input id="rbBase" value="${esc(sel)}" placeholder="例: 吾輩"></div>
+    <div class="field"><label>よみ（ふりがな）</label><input id="rbYomi" placeholder="例: わがはい"></div>
+    <div class="modal-actions"><button class="btn" data-close>キャンセル</button><button class="btn primary" id="rbIns">挿入</button></div>`,
+    (root)=>{
+      const baseEl=root.querySelector("#rbBase"), yomiEl=root.querySelector("#rbYomi");
+      (sel?yomiEl:baseEl).focus();
+      const doIns=()=>{
+        const base=baseEl.value.trim(), y=yomiEl.value.trim();
+        if(!base||!y){ alert("漢字とよみの両方を入力してください"); return; }
+        const ins=`｜${base}《${y}》`;
+        const ch=manuscript().chapters.find(c=>c.id===_msCurrentChapter); if(!ch) return;
+        ch.body = full.slice(0,start) + ins + full.slice(end);
+        saveLocal(); queueChapterSync(state.currentId, ch.id);
+        closeModal(); renderChapterEditor(); msHeadCount(); renderChapterList();
+        setTimeout(()=>{ const nb=document.getElementById("msBody"); if(nb){ const pos=start+ins.length; nb.focus(); nb.setSelectionRange(pos,pos); } },0);
+      };
+      root.querySelector("#rbIns").onclick=doIns;
+      yomiEl.addEventListener("keydown",e=>{ if(e.key==="Enter") doIns(); });
+    });
+}
+let _bodySaveTimer=null;
+function scheduleBodySave(chId){
+  clearTimeout(_bodySaveTimer);
+  _bodySaveTimer=setTimeout(()=>{ saveLocal(); queueChapterSync(state.currentId, chId); msHeadCount(); renderChapterList(); }, 600);
+}
+function addChapter(){
+  const ch={ id:uid(), title:`第${manuscript().chapters.length+1}章`, body:"" };
+  manuscript().chapters.push(ch); _msCurrentChapter=ch.id; _flashId=ch.id;
+  save(); queueChapterSync(state.currentId, ch.id); renderView();
+  setTimeout(()=>document.getElementById("msTitle")?.focus(),0);
+}
+function moveChapter(id,dir){
+  const arr=manuscript().chapters; const i=arr.findIndex(c=>c.id===id); const j=i+dir;
+  if(j<0||j>=arr.length) return; [arr[i],arr[j]]=[arr[j],arr[i]]; save(); renderChapterList();
+}
+function deleteChapter(id){
+  const ch=manuscript().chapters.find(c=>c.id===id); if(!ch) return;
+  if(!confirm(`「${ch.title||'無題'}」を削除します。よろしいですか？`)) return;
+  manuscript().chapters = manuscript().chapters.filter(c=>c.id!==id);
+  if(_msCurrentChapter===id) _msCurrentChapter = manuscript().chapters[0]?.id || null;
+  save(); deleteChapterRemote(state.currentId, id); renderView();
+}
+// 青空文庫形式のルビを <ruby> に変換（｜親文字《ルビ》 と 漢字《ルビ》）
+function renderRuby(text){
+  let s = esc(text);
+  s = s.replace(/｜([^《]+)《([^》]+)》/g, '<ruby>$1<rt>$2</rt></ruby>');
+  s = s.replace(/([一-龠々〆ヵヶ]+)《([^》]+)》/g, '<ruby>$1<rt>$2</rt></ruby>');
+  return s;
+}
+function previewVertical(ch){
+  const html = (ch.body||"").split(/\n/).map(line=> line.trim()==="" ? "<br>" : `<p>${renderRuby(line)}</p>`).join("");
+  openModal(`<div class="menu-head"><span class="menu-title">縦書きプレビュー — ${esc(ch.title||'無題')}</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <div class="ms-vert">${html||'<p class="muted">本文がありません</p>'}</div>`);
+  const modal=document.querySelector(".overlay .modal"); if(modal) modal.style.maxWidth="760px";
+}
+
+// ---- 製本プレビュー / 入稿用PDF（縦書き・実測ページ分割・ノンブル・柱） ----
+const BOOK_SIZES = {
+  a5:{w:148,h:210,label:"A5"}, bunko:{w:105,h:148,label:"文庫(A6)"},
+  b6:{w:128,h:182,label:"B6"}, shinsho:{w:103,h:182,label:"新書"}, b5:{w:182,h:257,label:"B5"}
+};
+const BOOK_DEFAULTS = { size:"a5", fontPt:8.5, lineH:1.8, mTop:15, mBottom:17, mOuter:15, mInner:18, nombre:true, kashira:true, chapterNewPage:true };
+function loadBookSettings(){ try{ return {...BOOK_DEFAULTS, ...(JSON.parse(localStorage.getItem("fabula:book"))||{})}; }catch(e){ return {...BOOK_DEFAULTS}; } }
+function saveBookSettings(s){ try{ localStorage.setItem("fabula:book", JSON.stringify(s)); }catch(e){} }
+
+function openBook(){
+  if(!manuscript().chapters.length){ alert("原稿がありません。章を追加してください。"); return; }
+  const ov=document.getElementById("bookOverlay"); ov.hidden=false;
+  document.getElementById("bookInfo").textContent="組版中…";
+  setTimeout(renderBook, 30);
+}
+function closeBook(){ document.getElementById("bookOverlay").hidden=true; document.getElementById("bookPrint").innerHTML=""; }
+
+function tokenizeRuby(line){
+  const tokens=[]; const re=/｜([^《]+)《([^》]+)》|([一-龠々〆ヵヶ]+)《([^》]+)》/g; let m, last=0;
+  while((m=re.exec(line))){
+    for(const ch of line.slice(last,m.index)) tokens.push({base:ch,yomi:null});
+    if(m[1]!=null) tokens.push({base:m[1],yomi:m[2]}); else tokens.push({base:m[3],yomi:m[4]});
+    last=re.lastIndex;
+  }
+  for(const ch of line.slice(last)) tokens.push({base:ch,yomi:null});
+  return tokens;
+}
+function tokensToHtml(tokens){
+  return tokens.map(t=> t.yomi? `<ruby>${esc(t.base)}<rt>${esc(t.yomi)}</rt></ruby>` : esc(t.base)).join("");
+}
+function buildBlocks(){
+  const blocks=[];
+  for(const ch of manuscript().chapters){
+    blocks.push({type:'chapter', text:ch.title||'無題'});
+    for(const ln of (ch.body||"").split(/\n/)) blocks.push({type:'para', tokens: ln===""? [] : tokenizeRuby(ln)});
+  }
+  return blocks;
+}
+function makePageEl(opts, sz, pageNum, workTitle){
+  const page=document.createElement('div'); page.className='book-page';
+  page.style.width=sz.w+"mm"; page.style.height=sz.h+"mm";
+  const odd = pageNum%2===1;                       // 右綴じ: 奇数=右ページ(のど=右)
+  const left = (odd? opts.mOuter : opts.mInner)+"mm";
+  const right= (odd? opts.mInner : opts.mOuter)+"mm";
+  const body=document.createElement('div'); body.className='bk-body';
+  body.style.top=opts.mTop+"mm"; body.style.bottom=opts.mBottom+"mm"; body.style.left=left; body.style.right=right;
+  body.style.fontSize=opts.fontPt+"pt"; body.style.lineHeight=opts.lineH;
+  page.appendChild(body);
+  if(opts.kashira && workTitle){ const k=document.createElement('div'); k.className='bk-kashira'; k.textContent=workTitle; page.appendChild(k); }
+  if(opts.nombre){ const n=document.createElement('div'); n.className='bk-nombre'; n.textContent=pageNum; page.appendChild(n); }
+  return {page, body};
+}
+function applyPageCSS(sz){
+  let st=document.getElementById("bookPageCSS");
+  if(!st){ st=document.createElement('style'); st.id="bookPageCSS"; document.head.appendChild(st); }
+  st.textContent=`@media print{ @page{ size:${sz.w}mm ${sz.h}mm; margin:0 } }`;
+}
+function renderBook(){
+  const opts=loadBookSettings(); const sz=BOOK_SIZES[opts.size]||BOOK_SIZES.a5;
+  applyPageCSS(sz);
+  const host=document.getElementById("bookPrint"); host.innerHTML="";
+  const title=curProject().title||"";
+  const blocks=buildBlocks();
+  let page, body;
+  const newPage=()=>{ const r=makePageEl(opts,sz,host.children.length+1,title); host.appendChild(r.page); page=r.page; body=r.body; };
+  const overflow=()=>body.scrollWidth > body.clientWidth + 1;      // 縦書きは左へあふれる
+  newPage();
+  for(const blk of blocks){
+    if(blk.type==='chapter'){
+      if(opts.chapterNewPage && body.childNodes.length) newPage();
+      const h=document.createElement('div'); h.className='bk-chap'; h.textContent=blk.text; body.appendChild(h);
+      if(overflow()){ body.removeChild(h); newPage(); body.appendChild(h); }
+      continue;
+    }
+    if(blk.tokens.length===0){ const p=document.createElement('p'); p.className='bk-p'; p.innerHTML='<br>'; body.appendChild(p); if(overflow()){ body.removeChild(p); newPage(); } continue; }
+    const pFull=document.createElement('p'); pFull.className='bk-p'; pFull.innerHTML=tokensToHtml(blk.tokens); body.appendChild(pFull);
+    if(!overflow()) continue;
+    body.removeChild(pFull);
+    let rest=blk.tokens.slice();
+    while(rest.length){
+      const p=document.createElement('p'); p.className='bk-p'; body.appendChild(p);
+      p.innerHTML=tokensToHtml(rest);
+      if(!overflow()){ rest=[]; break; }
+      let lo=1, hi=rest.length, fit=0;
+      while(lo<=hi){ const mid=(lo+hi)>>1; p.innerHTML=tokensToHtml(rest.slice(0,mid)); if(overflow()) hi=mid-1; else { fit=mid; lo=mid+1; } }
+      if(fit===0){ // ページが空でも1字入らない=異常。無限ループ防止に最低1字
+        if(body.querySelectorAll('.bk-p,.bk-chap').length<=1){ p.innerHTML=tokensToHtml(rest.slice(0,1)); rest=rest.slice(1); if(rest.length) newPage(); continue; }
+        body.removeChild(p); newPage(); continue;
+      }
+      p.innerHTML=tokensToHtml(rest.slice(0,fit)); rest=rest.slice(fit);
+      if(rest.length) newPage();
+    }
+  }
+  document.getElementById("bookInfo").textContent = `${sz.label}・${host.children.length}ページ`;
+}
+function openBookSettings(){
+  const o=loadBookSettings();
+  const sizeOpts=Object.entries(BOOK_SIZES).map(([k,v])=>`<option value="${k}" ${k===o.size?'selected':''}>${v.label}（${v.w}×${v.h}mm）</option>`).join("");
+  openModal(`<div class="menu-head"><span class="menu-title">製本設定</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <div class="field"><label>判型</label><select id="bkSize">${sizeOpts}</select></div>
+    <div class="field-row"><div style="flex:1"><label>文字サイズ(pt)</label><input id="bkFont" type="number" step="0.5" value="${o.fontPt}"></div>
+      <div style="flex:1"><label>行送り(倍)</label><input id="bkLine" type="number" step="0.05" value="${o.lineH}"></div></div>
+    <div class="field-row"><div style="flex:1"><label>余白 天(mm)</label><input id="bkTop" type="number" value="${o.mTop}"></div>
+      <div style="flex:1"><label>地(mm)</label><input id="bkBottom" type="number" value="${o.mBottom}"></div></div>
+    <div class="field-row"><div style="flex:1"><label>のど・綴じ側(mm)</label><input id="bkInner" type="number" value="${o.mInner}"></div>
+      <div style="flex:1"><label>小口・外側(mm)</label><input id="bkOuter" type="number" value="${o.mOuter}"></div></div>
+    <div class="field"><label class="ck"><input type="checkbox" id="bkNombre" ${o.nombre?'checked':''}> ノンブル（ページ番号）</label>
+      <label class="ck"><input type="checkbox" id="bkKashira" ${o.kashira?'checked':''}> 柱（作品名を各ページ上部に）</label>
+      <label class="ck"><input type="checkbox" id="bkChap" ${o.chapterNewPage?'checked':''}> 章ごとに改ページ（章扉）</label></div>
+    <div class="modal-actions"><button class="btn" data-close>キャンセル</button><button class="btn primary" id="bkApply">適用</button></div>`,
+    (root)=>{
+      root.querySelector("#bkApply").onclick=()=>{
+        const s={ size:root.querySelector("#bkSize").value, fontPt:parseFloat(root.querySelector("#bkFont").value)||8.5,
+          lineH:parseFloat(root.querySelector("#bkLine").value)||1.8, mTop:+root.querySelector("#bkTop").value||15,
+          mBottom:+root.querySelector("#bkBottom").value||17, mInner:+root.querySelector("#bkInner").value||18,
+          mOuter:+root.querySelector("#bkOuter").value||15, nombre:root.querySelector("#bkNombre").checked,
+          kashira:root.querySelector("#bkKashira").checked, chapterNewPage:root.querySelector("#bkChap").checked };
+        saveBookSettings(s); closeModal();
+        document.getElementById("bookInfo").textContent="組版中…"; setTimeout(renderBook,30);
+      };
+    });
+}
+function printBook(){ window.print(); }
+
+// ---- ゲームシナリオ（ノベルゲーム/ADV：シーン＝コマンド列・選択肢分岐・フロー図） ----
+function scenario(){ const d=cur(); if(!d.scenario) d.scenario={scenes:[],vars:[]}; if(!d.scenario.vars) d.scenario.vars=[]; return d.scenario; }
+let _scCurScene = null;
+function scVars(){ return scenario().vars; }
+function varById(id){ return scVars().find(v=>v.id===id); }
+const SET_OP_FLAG={on:'をONにする',off:'をOFFにする',toggle:'を切り替え'};
+const SET_OP_NUM={set:'=',add:'+=',sub:'-='};
+const CMP_FLAG={on:'がON',off:'がOFF'};
+const CMP_NUM={ge:'≥',le:'≤',eq:'=',gt:'>',lt:'<'};
+function cmdTypeLabel(t){ return {line:"セリフ",narration:"地の文",choice:"選択肢",set:"変数",if:"条件分岐"}[t]||t; }
+function defaultCmd(type){
+  if(type==='line') return {charId:"",speaker:"",face:"",text:""};
+  if(type==='choice') return {options:[]};
+  if(type==='set') return {varId:"",op:"",value:0};
+  if(type==='if') return {varId:"",cmp:"",value:0,then:[],else:[]};
+  return {text:""};
+}
+function sceneName(id){ const s=scenario().scenes.find(x=>x.id===id); return s? (s.title||"無題") : "（未設定）"; }
+function cmdSpeaker(cmd){ const c=cur().characters.find(x=>x.id===cmd.charId); return c? c.name : (cmd.speaker||"？"); }
+function setSummary(cmd){ const v=varById(cmd.varId); if(!v) return "(変数未設定)";
+  return v.type==='flag' ? `${esc(v.name)}${SET_OP_FLAG[cmd.op]||''}` : `${esc(v.name)} ${SET_OP_NUM[cmd.op]||'='} ${esc(String(cmd.value??0))}`; }
+function ifSummary(cmd){ const v=varById(cmd.varId); if(!v) return "(変数未設定)";
+  return v.type==='flag' ? `${esc(v.name)}${CMP_FLAG[cmd.cmp]||''}` : `${esc(v.name)}${CMP_NUM[cmd.cmp]||''}${esc(String(cmd.value??0))}`; }
+function cmdSummary(cmd){
+  switch(cmd.type){
+    case 'line': return `<span class="sc-badge line">セリフ</span><b>${esc(cmdSpeaker(cmd))}</b>${cmd.face?`<span class="sc-face">(${esc(cmd.face)})</span>`:""}「${esc(cmd.text||"")}」`;
+    case 'narration': return `<span class="sc-badge narr">地の文</span>${esc(cmd.text||"")}`;
+    case 'choice': return `<span class="sc-badge choice">選択肢</span>`+((cmd.options||[]).map(o=>`「${esc(o.text||"")}」${o.to?` → ${esc(sceneName(o.to))}`:""}`).join("　/　")||"（未設定）");
+    case 'set': return `<span class="sc-badge set">変数</span>${setSummary(cmd)}`;
+    case 'if': return `<span class="sc-badge if">条件</span>もし ${ifSummary(cmd)} なら`;
+    default: return "";
+  }
+}
+function renderScenario(main){
+  const sc=scenario(); const scenes=sc.scenes;
+  if(scenes.length && (!_scCurScene||!scenes.find(s=>s.id===_scCurScene))) _scCurScene=scenes[0].id;
+  if(!scenes.length) _scCurScene=null;
+  main.innerHTML=`<div class="view-head"><h2>シナリオ</h2><span class="muted">${scenes.length}シーン</span>
+    <div class="spacer" style="flex:1"></div>
+    <button class="btn" id="scVarsBtn">変数</button>
+    <button class="btn" id="scFlow" ${scenes.length?'':'disabled'}>分岐フロー図</button></div>
+    <div class="ms-wrap">
+      <aside class="ms-side"><div class="ms-chaps" id="scScenes"></div>
+        <button class="btn" id="scAdd" style="width:100%">＋ シーンを追加</button></aside>
+      <section class="ms-editor" id="scEditor"></section>
+    </div>`;
+  document.getElementById("scAdd").onclick=addScene;
+  document.getElementById("scVarsBtn").onclick=openVars;
+  const fb=document.getElementById("scFlow"); if(scenes.length) fb.onclick=openFlow;
+  renderSceneList(); renderSceneEditor();
+}
+function renderSceneList(){
+  const host=document.getElementById("scScenes"); if(!host)return;
+  const scenes=scenario().scenes;
+  host.innerHTML=scenes.map((s,i)=>`
+    <div class="ms-chap ${s.id===_scCurScene?'active':''}" data-id="${s.id}">
+      <div class="ms-chap-main"><div class="ms-chap-title">${esc(s.title||'無題シーン')}</div>
+        <div class="ms-chap-count">${(s.commands||[]).length}コマンド</div></div>
+      <div class="ms-chap-ord"><button class="mini up" ${i===0?'disabled':''}>▲</button><button class="mini down" ${i===scenes.length-1?'disabled':''}>▼</button></div>
+    </div>`).join("")||`<div class="muted" style="padding:8px 4px;font-size:13px">シーンがありません</div>`;
+  host.querySelectorAll(".ms-chap").forEach(el=>{const id=el.dataset.id;
+    el.querySelector(".ms-chap-main").onclick=()=>{_scCurScene=id;renderSceneList();renderSceneEditor();};
+    el.querySelector(".up").onclick=e=>{e.stopPropagation();moveScene(id,-1);};
+    el.querySelector(".down").onclick=e=>{e.stopPropagation();moveScene(id,1);};
+  });
+}
+function renderSceneEditor(){
+  const host=document.getElementById("scEditor"); if(!host)return;
+  const s=scenario().scenes.find(x=>x.id===_scCurScene);
+  if(!s){ host.innerHTML=`<div class="empty">シーンを追加してシナリオを書き始めましょう</div>`; return; }
+  if(!s.commands) s.commands=[];
+  const nextOpts=scenario().scenes.map(x=>`<option value="${x.id}" ${x.id===s.next?'selected':''}>→ ${esc(x.title||'無題')}</option>`).join("");
+  host.innerHTML=`<div class="sc-head">
+      <input class="ms-title" id="scTitle" value="${esc(s.title)}" placeholder="シーン名（例: プロローグ）">
+      <button class="btn icon subtle" id="scMenu" title="その他">⋯</button></div>
+    <div class="sc-cmds" id="scCmds"></div>
+    <div class="sc-next"><span class="muted">シーン終了後 →</span>
+      <select id="scNext"><option value="">（ここで終了）</option>${nextOpts}</select>
+      <span class="muted" style="font-size:11.5px">※選択肢で分岐した場合はそちらが優先</span></div>`;
+  const title=host.querySelector("#scTitle");
+  title.oninput=()=>{ s.title=title.value; saveLocal(); queueSync(state.currentId); renderSceneList(); };
+  host.querySelector("#scMenu").onclick=()=>openDeleteMenu("シーンの操作","このシーンを削除",()=>deleteScene(s.id));
+  host.querySelector("#scNext").onchange=e=>{ s.next=e.target.value; save(); };
+  renderCmdList();
+}
+function renderCmdList(){
+  const host=document.getElementById("scCmds"); if(!host)return;
+  const s=scenario().scenes.find(x=>x.id===_scCurScene); if(!s)return; if(!s.commands)s.commands=[];
+  host.innerHTML=""; host.appendChild(buildSeq(s.commands)); applyFlash();
+}
+function mkMini(label,disabled){ const b=document.createElement('button'); b.className='mini'; b.textContent=label; if(disabled)b.disabled=true; return b; }
+function buildAddBar(list){
+  const bar=document.createElement('div'); bar.className='sc-addbar';
+  const lbl=document.createElement('span'); lbl.className='muted'; lbl.style.fontSize='12px'; lbl.textContent='追加:'; bar.appendChild(lbl);
+  [['line','セリフ'],['narration','地の文'],['choice','選択肢'],['set','変数'],['if','条件']].forEach(([t,label])=>{
+    const b=document.createElement('button'); b.className='btn mini2'; b.textContent=label; b.onclick=()=>editCommand(null,t,list); bar.appendChild(b);
+  });
+  return bar;
+}
+function buildSeq(cmds){
+  const wrap=document.createElement('div'); wrap.className='sc-seq';
+  cmds.forEach((c,i)=> wrap.appendChild(buildCmdRow(c,cmds,i)));
+  wrap.appendChild(buildAddBar(cmds));
+  return wrap;
+}
+function buildCmdRow(cmd, list, i){
+  const row=document.createElement('div'); row.className='sc-cmd'; row.dataset.id=cmd.id;
+  const body=document.createElement('div'); body.className='sc-cmd-body'; body.innerHTML=cmdSummary(cmd);
+  const ord=document.createElement('div'); ord.className='sc-cmd-ord';
+  const up=mkMini('▲', i===0); up.onclick=()=>{ [list[i-1],list[i]]=[list[i],list[i-1]]; save(); renderCmdList(); };
+  const dn=mkMini('▼', i===list.length-1); dn.onclick=()=>{ [list[i+1],list[i]]=[list[i],list[i+1]]; save(); renderCmdList(); };
+  const ed=mkMini('編集',false); ed.onclick=()=>editCommand(cmd.id,null,list);
+  ord.append(up,dn,ed); row.append(body,ord);
+  if(cmd.type==='choice'){
+    const group=document.createElement('div'); group.className='sc-choice-group'; group.appendChild(row);
+    const nest=document.createElement('div'); nest.className='sc-nest';
+    (cmd.options||[]).forEach(opt=>{
+      const oh=document.createElement('div'); oh.className='sc-opt-head';
+      oh.textContent=`「${opt.text||'(選択肢)'}」`+(opt.to?` → ${sceneName(opt.to)}`:"：この下に続き");
+      nest.appendChild(oh);
+      if(!opt.to){ if(!opt.commands)opt.commands=[]; nest.appendChild(buildSeq(opt.commands)); }
+    });
+    group.appendChild(nest); return group;
+  }
+  if(cmd.type==='if'){
+    const group=document.createElement('div'); group.className='sc-choice-group'; group.appendChild(row);
+    const nest=document.createElement('div'); nest.className='sc-nest';
+    const h1=document.createElement('div'); h1.className='sc-opt-head'; h1.textContent='満たすとき'; nest.appendChild(h1);
+    if(!cmd.then)cmd.then=[]; nest.appendChild(buildSeq(cmd.then));
+    const h2=document.createElement('div'); h2.className='sc-opt-head'; h2.textContent='満たさないとき（任意）'; nest.appendChild(h2);
+    if(!cmd.else)cmd.else=[]; nest.appendChild(buildSeq(cmd.else));
+    group.appendChild(nest); return group;
+  }
+  return row;
+}
+function addScene(){ const s={id:uid(),title:`シーン${scenario().scenes.length+1}`,commands:[]}; scenario().scenes.push(s); _scCurScene=s.id; _flashId=s.id; save(); renderView(); setTimeout(()=>document.getElementById("scTitle")?.focus(),0); }
+function moveScene(id,dir){ const a=scenario().scenes;const i=a.findIndex(s=>s.id===id);const j=i+dir;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];save();renderSceneList(); }
+function deleteScene(id){ const s=scenario().scenes.find(x=>x.id===id);if(!s)return; if(!confirm(`シーン「${s.title||'無題'}」を削除します。よろしいですか？`))return; scenario().scenes=scenario().scenes.filter(x=>x.id!==id); if(_scCurScene===id)_scCurScene=scenario().scenes[0]?.id||null; save(); renderView(); }
+function commitCmd(cmd,isNew,list){ if(isNew){ list.push(cmd); _flashId=cmd.id; } save(); closeModal(); renderCmdList(); renderSceneList(); }
+function editCommand(id, type, list){
+  const isNew=!id;
+  const cmd = isNew? {id:uid(), type, ...defaultCmd(type)} : list.find(c=>c.id===id);
+  if(!cmd) return;
+  const chars=cur().characters;
+  const charSelect=(sel)=>`<select id="cmChar"><option value="">（自由入力）</option>${chars.map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${esc(c.name)}</option>`).join("")}</select>`;
+  let fields="";
+  if(cmd.type==='line') fields=`
+    <div class="field"><label>話者</label>${charSelect(cmd.charId)}</div>
+    <div class="field" id="cmSpeakerWrap" ${cmd.charId?'style="display:none"':''}><label>話者名（自由入力）</label><input id="cmSpeaker" value="${esc(cmd.speaker||'')}"></div>
+    <div class="field"><label>表情（任意）</label><input id="cmFace" value="${esc(cmd.face||'')}" placeholder="例: 笑顔 / 怒り"></div>
+    <div class="field"><label>セリフ</label><textarea id="cmText">${esc(cmd.text||'')}</textarea></div>`;
+  else if(cmd.type==='narration') fields=`<div class="field"><label>地の文</label><textarea id="cmText">${esc(cmd.text||'')}</textarea></div>`;
+  else if(cmd.type==='choice') fields=`<div class="field"><label>選択肢</label>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">飛び先を指定＝別シーンへジャンプ／空欄＝この選択肢の下に続きを書く（同じシーン内で分岐）</div>
+    <div id="cmOpts"></div><button class="btn mini2" id="cmAddOpt" style="margin-top:7px">＋ 選択肢を追加</button></div>`;
+  else if(cmd.type==='set') fields = scVars().length
+    ? `<div class="field"><label>変数</label><select id="cmVar">${scVars().map(v=>`<option value="${v.id}" ${v.id===cmd.varId?'selected':''}>${esc(v.name)}（${v.type==='flag'?'フラグ':'数値'}）</option>`).join("")}</select></div><div id="cmDyn"></div>`
+    : `<div class="muted">先に右上の「変数」ボタンで変数を作成してください。</div>`;
+  else if(cmd.type==='if') fields = scVars().length
+    ? `<div class="field"><label>条件にする変数</label><select id="cmVar">${scVars().map(v=>`<option value="${v.id}" ${v.id===cmd.varId?'selected':''}>${esc(v.name)}（${v.type==='flag'?'フラグ':'数値'}）</option>`).join("")}</select></div><div id="cmDyn"></div><div class="muted" style="font-size:12px;margin-top:4px">保存後、一覧の「満たすとき／満たさないとき」に続きを書けます。</div>`
+    : `<div class="muted">先に右上の「変数」ボタンで変数を作成してください。</div>`;
+  openModal(`<div class="menu-head"><span class="menu-title">${isNew?'追加':'編集'}: ${cmdTypeLabel(cmd.type)}</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    ${fields}
+    <div class="modal-actions">${isNew?'':'<button class="btn danger" id="cmDel">削除</button>'}<div class="spacer" style="flex:1"></div>
+      <button class="btn" data-close>キャンセル</button><button class="btn primary" id="cmSave">保存</button></div>`,
+    (root)=>{
+      const charSel=root.querySelector("#cmChar");
+      if(charSel) charSel.onchange=()=>{ const w=root.querySelector("#cmSpeakerWrap"); if(w) w.style.display=charSel.value?'none':''; };
+      if(cmd.type==='choice'){
+        let opts=(cmd.options||[]).map(o=>({...o})); if(!opts.length) opts=[{id:uid(),text:"",to:"",commands:[]}];
+        const scenes=scenario().scenes;
+        const drawOpts=()=>{ const h=root.querySelector("#cmOpts");
+          h.innerHTML=opts.map((o,i)=>`<div class="field-row" data-i="${i}">
+            <input style="flex:2" class="optText" value="${esc(o.text)}" placeholder="選択肢テキスト">
+            <select class="optTo" style="flex:1"><option value="">下に続き（同じシーン）</option>${scenes.map(sc=>`<option value="${sc.id}" ${sc.id===o.to?'selected':''}>→ ${esc(sc.title||'無題')}</option>`).join("")}</select>
+            <button class="mini optDel">×</button></div>`).join("");
+          h.querySelectorAll(".field-row").forEach(row=>{ const i=+row.dataset.i;
+            row.querySelector(".optText").oninput=e=>opts[i].text=e.target.value;
+            row.querySelector(".optTo").onchange=e=>opts[i].to=e.target.value;
+            row.querySelector(".optDel").onclick=()=>{ opts.splice(i,1); if(!opts.length)opts.push({id:uid(),text:"",to:"",commands:[]}); drawOpts(); };
+          });
+        };
+        drawOpts();
+        root.querySelector("#cmAddOpt").onclick=()=>{ opts.push({id:uid(),text:"",to:"",commands:[]}); drawOpts(); };
+        root.querySelector("#cmSave").onclick=()=>{ cmd.options=opts.filter(o=>o.text||o.to||(o.commands&&o.commands.length)); commitCmd(cmd,isNew,list); };
+      } else if(cmd.type==='set'){
+        const drawDyn=()=>{ const sel=root.querySelector("#cmVar"), host=root.querySelector("#cmDyn"); if(!sel||!host)return; const v=varById(sel.value);
+          if(!v){host.innerHTML="";return;}
+          host.innerHTML = v.type==='flag'
+            ? `<div class="field"><label>操作</label><select id="cmOp"><option value="on" ${cmd.op==='on'?'selected':''}>ONにする</option><option value="off" ${cmd.op==='off'?'selected':''}>OFFにする</option><option value="toggle" ${cmd.op==='toggle'?'selected':''}>切り替え</option></select></div>`
+            : `<div class="field-row"><div style="flex:1"><label>操作</label><select id="cmOp"><option value="set" ${cmd.op==='set'?'selected':''}>= にする</option><option value="add" ${cmd.op==='add'?'selected':''}>+= 足す</option><option value="sub" ${cmd.op==='sub'?'selected':''}>-= 引く</option></select></div><div style="flex:1"><label>値</label><input id="cmVal" type="number" value="${cmd.value??0}"></div></div>`;
+        };
+        const vsel=root.querySelector("#cmVar"); if(vsel){ drawDyn(); vsel.onchange=drawDyn; }
+        root.querySelector("#cmSave").onclick=()=>{ const sel=root.querySelector("#cmVar"); if(!sel){alert("先に変数を作成してください");return;}
+          cmd.varId=sel.value; const v=varById(cmd.varId); const op=root.querySelector("#cmOp"); cmd.op=op?op.value:(v&&v.type==='flag'?'on':'set');
+          const val=root.querySelector("#cmVal"); cmd.value=val?(parseFloat(val.value)||0):0; commitCmd(cmd,isNew,list); };
+      } else if(cmd.type==='if'){
+        const drawDyn=()=>{ const sel=root.querySelector("#cmVar"), host=root.querySelector("#cmDyn"); if(!sel||!host)return; const v=varById(sel.value);
+          if(!v){host.innerHTML="";return;}
+          host.innerHTML = v.type==='flag'
+            ? `<div class="field"><label>条件</label><select id="cmCmp"><option value="on" ${cmd.cmp==='on'?'selected':''}>がON</option><option value="off" ${cmd.cmp==='off'?'selected':''}>がOFF</option></select></div>`
+            : `<div class="field-row"><div style="flex:1"><label>比較</label><select id="cmCmp"><option value="ge" ${cmd.cmp==='ge'?'selected':''}>≥ 以上</option><option value="le" ${cmd.cmp==='le'?'selected':''}>≤ 以下</option><option value="eq" ${cmd.cmp==='eq'?'selected':''}>= 等しい</option><option value="gt" ${cmd.cmp==='gt'?'selected':''}>＞ より大</option><option value="lt" ${cmd.cmp==='lt'?'selected':''}>＜ より小</option></select></div><div style="flex:1"><label>値</label><input id="cmVal" type="number" value="${cmd.value??0}"></div></div>`;
+        };
+        const vsel=root.querySelector("#cmVar"); if(vsel){ drawDyn(); vsel.onchange=drawDyn; }
+        root.querySelector("#cmSave").onclick=()=>{ const sel=root.querySelector("#cmVar"); if(!sel){alert("先に変数を作成してください");return;}
+          cmd.varId=sel.value; const v=varById(cmd.varId); const cmp=root.querySelector("#cmCmp"); cmd.cmp=cmp?cmp.value:(v&&v.type==='flag'?'on':'ge');
+          const val=root.querySelector("#cmVal"); cmd.value=val?(parseFloat(val.value)||0):0; commitCmd(cmd,isNew,list); };
+      } else {
+        root.querySelector("#cmSave").onclick=()=>{
+          if(charSel) cmd.charId=charSel.value;
+          const sp=root.querySelector("#cmSpeaker"); if(sp) cmd.speaker=sp.value.trim();
+          const tx=root.querySelector("#cmText"); if(tx) cmd.text=tx.value;
+          const fc=root.querySelector("#cmFace"); if(fc) cmd.face=fc.value.trim();
+          commitCmd(cmd,isNew,list);
+        };
+      }
+      const del=root.querySelector("#cmDel"); if(del) del.onclick=()=>{ const idx=list.indexOf(cmd); if(idx>=0) list.splice(idx,1); save(); closeModal(); renderCmdList(); renderSceneList(); };
+    });
+}
+function openVars(){
+  let vl=scVars().map(v=>({...v}));
+  openModal(`<div class="menu-head"><span class="menu-title">変数（フラグ・数値）</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">好感度やフラグを定義 → 「変数」コマンドで変化、「条件」コマンドで分岐できます。</div>
+    <div id="vrList"></div>
+    <button class="btn mini2" id="vrAdd" style="margin-top:7px">＋ 変数を追加</button>
+    <div class="modal-actions"><button class="btn" data-close>キャンセル</button><button class="btn primary" id="vrSave">保存</button></div>`,
+    (root)=>{
+      const draw=()=>{ const h=root.querySelector("#vrList");
+        h.innerHTML = vl.length? vl.map((v,i)=>`<div class="field-row" data-i="${i}">
+          <input class="vName" style="flex:2" value="${esc(v.name)}" placeholder="変数名（例: 好感度）">
+          <select class="vType" style="flex:1"><option value="flag" ${v.type==='flag'?'selected':''}>フラグ</option><option value="num" ${v.type==='num'?'selected':''}>数値</option></select>
+          <input class="vInit" style="flex:0 0 66px" value="${esc(String(v.init??(v.type==='num'?0:false)))}" title="初期値">
+          <button class="mini vDel">×</button></div>`).join("") : `<div class="muted" style="font-size:13px">変数がありません</div>`;
+        h.querySelectorAll(".field-row").forEach(row=>{ const i=+row.dataset.i;
+          row.querySelector(".vName").oninput=e=>vl[i].name=e.target.value;
+          row.querySelector(".vType").onchange=e=>{ vl[i].type=e.target.value; draw(); };
+          row.querySelector(".vInit").oninput=e=>vl[i].init=e.target.value;
+          row.querySelector(".vDel").onclick=()=>{ vl.splice(i,1); draw(); };
+        });
+      };
+      draw();
+      root.querySelector("#vrAdd").onclick=()=>{ vl.push({id:uid(),name:"",type:"flag",init:false}); draw(); };
+      root.querySelector("#vrSave").onclick=()=>{
+        scenario().vars = vl.filter(v=>(v.name||"").trim()).map(v=>({ id:v.id, name:v.name.trim(), type:(v.type==='num'?'num':'flag'),
+          init: v.type==='num' ? (parseFloat(v.init)||0) : (v.init===true||v.init==='true'||v.init==='ON'||v.init==='on') }));
+        save(); closeModal(); renderView();
+      };
+    });
+}
+function openFlow(){
+  openModal(`<div class="menu-head"><span class="menu-title">分岐フロー図</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <div class="flow-wrap"><svg id="flowSvg" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <p class="muted" style="font-size:12px;margin:8px 2px 0">実線＝選択肢の飛び先 / 点線＝「次のシーン」。</p>`);
+  const modal=document.querySelector(".overlay .modal"); if(modal) modal.style.maxWidth="820px";
+  drawFlow();
+}
+function drawFlow(){
+  const svg=document.getElementById("flowSvg"); if(!svg)return;
+  const scenes=scenario().scenes; const W=800,H=520;
+  const n=scenes.length||1; const cols=Math.ceil(Math.sqrt(n)); const rows=Math.ceil(n/cols);
+  const cw=W/cols, ch=H/rows; const pos={};
+  scenes.forEach((s,i)=>{ const r=Math.floor(i/cols), c=i%cols; pos[s.id]={x:c*cw+cw/2, y:r*ch+ch/2}; });
+  let defs=`<defs><marker id="fl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--text-2)"/></marker></defs>`;
+  // ネストしたコマンド(選択肢の続き・条件分岐)も辿ってジャンプを収集
+  const jumps=[];
+  const scan=(cmds,fromId)=>{ (cmds||[]).forEach(c=>{
+    if(c.type==='choice'){ (c.options||[]).forEach(o=>{ if(o.to) jumps.push({from:fromId,to:o.to,kind:'choice'}); else scan(o.commands,fromId); }); }
+    else if(c.type==='if'){ scan(c.then,fromId); scan(c.else,fromId); }
+  }); };
+  scenes.forEach(s=>{ scan(s.commands,s.id); if(s.next) jumps.push({from:s.id,to:s.next,kind:'next'}); });
+  let edges="", nodes="";
+  jumps.forEach(j=>{ if(j.to===j.from||!pos[j.to]||!pos[j.from])return; const p=pos[j.from],q=pos[j.to];
+    const dx=q.x-p.x,dy=q.y-p.y,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len;
+    const x1=p.x+ux*56,y1=p.y+uy*22,x2=q.x-ux*58,y2=q.y-uy*24;
+    const dash=j.kind==='next'?' stroke-dasharray="5 4"':'';
+    edges+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--text-2)" stroke-width="1.5" opacity=".6"${dash} marker-end="url(#fl-arrow)"/>`;
+  });
+  scenes.forEach(s=>{ const p=pos[s.id]; const label=(s.title||'無題');
+    nodes+=`<g><rect x="${p.x-54}" y="${p.y-18}" width="108" height="36" rx="5" fill="var(--primary-weak)" stroke="var(--primary)"/>
+      <text x="${p.x}" y="${p.y+4}" text-anchor="middle" font-size="12" fill="var(--text)">${esc(label.length>8?label.slice(0,8)+'…':label)}</text></g>`;
+  });
+  svg.innerHTML=defs+edges+nodes;
+}
+
+// ---- メモ／アイデア置き場（作品ごと・自由記述・自動保存） ----
+function memos(){ const d=cur(); if(!d.memos) d.memos=[]; return d.memos; }
+function renderMemos(main){
+  const list=memos().filter(tagMatch);
+  main.innerHTML=`<div class="view-head"><h2>メモ</h2><span class="muted">${list.length}件</span>
+    <div class="spacer" style="flex:1"></div><button class="btn primary" id="memoAdd">＋ メモを追加</button></div>
+    ${tagFilterBarHtml()}<div class="memo-list" id="memoList"></div>`;
+  document.getElementById("memoAdd").onclick=addMemo;
+  const host=document.getElementById("memoList"); if(!host) return;
+  host.innerHTML=list.map((m,i)=>`
+    <div class="memo-card" data-id="${m.id}">
+      <div class="memo-top">
+        <input class="memo-title" value="${esc(m.title||'')}" placeholder="タイトル（任意）">
+        <div class="memo-ord">
+          <button class="mini up" ${i===0?'disabled':''}>▲</button>
+          <button class="mini down" ${i===list.length-1?'disabled':''}>▼</button>
+          <button class="btn icon subtle memo-menu" title="その他">⋯</button>
+        </div>
+      </div>
+      <textarea class="memo-body" placeholder="アイデア・メモを自由に…">${esc(m.body||'')}</textarea>
+      <input class="memo-tags" value="${esc((m.tags||[]).join(', '))}" placeholder="タグ（カンマ区切り）">
+      ${tagChipsHtml(m.tags)}
+    </div>`).join("");
+  host.querySelectorAll(".memo-card").forEach(el=>{
+    const id=el.dataset.id; const m=list.find(x=>x.id===id);
+    el.querySelector(".memo-title").oninput=e=>{ m.title=e.target.value; saveLocal(); queueSync(state.currentId); };
+    el.querySelector(".memo-body").oninput=e=>{ m.body=e.target.value; saveLocal(); queueSync(state.currentId); };
+    el.querySelector(".memo-tags").oninput=e=>{ m.tags=parseTags(e.target.value); saveLocal(); queueSync(state.currentId); };
+    el.querySelector(".up").onclick=()=>moveMemo(id,-1);
+    el.querySelector(".down").onclick=()=>moveMemo(id,1);
+    el.querySelector(".memo-menu").onclick=()=>openDeleteMenu("メモの操作","このメモを削除",()=>deleteMemo(id));
+  });
+  wireTags(main);
+}
+function addMemo(){ const m={id:uid(),title:"",body:"",tags:[]}; memos().unshift(m); _flashId=m.id; save(); renderView(); setTimeout(()=>document.querySelector('.memo-card[data-id="'+m.id+'"] .memo-body')?.focus(),0); }
+function moveMemo(id,dir){ const a=memos();const i=a.findIndex(m=>m.id===id);const j=i+dir;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];save();renderView(); }
+function deleteMemo(id){ const m=memos().find(x=>x.id===id); if(!m)return; if(!confirm("このメモを削除します。よろしいですか？"))return; cur().memos=memos().filter(x=>x.id!==id); save(); renderView(); }
+
+// ============================ モーダル ============================
+function openModal(html, onReady){
+  const host=document.getElementById("overlayHost");
+  host.innerHTML=`<div class="overlay"><div class="modal">${html}</div></div>`;
+  const ov=host.querySelector(".overlay");
+  ov.addEventListener("click",e=>{ if(e.target===ov) closeModal(); });
+  host.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModal);
+  if(onReady) onReady(host.querySelector(".modal"));
+  const f=host.querySelector("input,textarea,select"); if(f) f.focus();
+}
+function closeModal(){ document.getElementById("overlayHost").innerHTML=""; }
+// ---- 検索（この作品内を横断検索） ----
+function searchProject(q){
+  q=(q||"").trim().toLowerCase(); const d=cur(); if(!q||!d) return [];
+  const hit=s=>(s||"").toLowerCase().includes(q); const res=[];
+  (d.characters||[]).forEach(c=>{ if(hit(c.name)||(c.fields||[]).some(f=>hit(f.k)||hit(f.v))||(c.tags||[]).some(hit)) res.push({type:'character',id:c.id,label:c.name||'(無名)',sub:'キャラ'}); });
+  (d.world||[]).forEach(w=>{ if(hit(w.title)||hit(w.body)||hit(w.category)||(w.tags||[]).some(hit)) res.push({type:'world',id:w.id,label:w.title||'(無題)',sub:'世界観'}); });
+  ((d.plot&&d.plot.cards)||[]).forEach(c=>{ if(hit(c.title)||hit(c.body)||(c.tags||[]).some(hit)) res.push({type:'plot',id:c.id,label:c.title||'(無題)',sub:'プロット'}); });
+  (d.timeline||[]).forEach(e=>{ if(hit(e.when)||hit(e.title)||hit(e.body)) res.push({type:'timeline',id:e.id,label:e.title||'(無題)',sub:'年表'}); });
+  (d.relations||[]).forEach(r=>{ const a=(d.characters||[]).find(c=>c.id===r.from),b=(d.characters||[]).find(c=>c.id===r.to);
+    if(hit(r.label)||(a&&hit(a.name))||(b&&hit(b.name))) res.push({type:'relation',id:r.id,label:`${a?a.name:'?'} → ${b?b.name:'?'}（${r.label||''}）`,sub:'相関図'}); });
+  ((d.manuscript&&d.manuscript.chapters)||[]).forEach(ch=>{ if(hit(ch.title)||hit(ch.body)) res.push({type:'chapter',id:ch.id,label:ch.title||'(無題)',sub:'原稿'}); });
+  ((d.scenario&&d.scenario.scenes)||[]).forEach(s=>{ let m=hit(s.title);
+    if(!m){ const sc=cmds=>(cmds||[]).some(c=>hit(c.text)||hit(c.speaker)||(c.options||[]).some(o=>hit(o.text)||sc(o.commands))||sc(c.then)||sc(c.else)); m=sc(s.commands); }
+    if(m) res.push({type:'scene',id:s.id,label:s.title||'(無題)',sub:'シナリオ'}); });
+  (d.memos||[]).forEach(m=>{ if(hit(m.title)||hit(m.body)||(m.tags||[]).some(hit)) res.push({type:'memo',id:m.id,label:m.title||(m.body||'').slice(0,24)||'(空メモ)',sub:'メモ'}); });
+  return res;
+}
+function jumpToResult(r){
+  closeModal();
+  const setTab=v=>{ currentView=v; document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("active",x.dataset.view===v)); renderView(); };
+  if(r.type==='character'){ setTab('characters'); editCharacter(r.id); }
+  else if(r.type==='world'){ setTab('world'); editWorld(r.id); }
+  else if(r.type==='plot'){ setTab('plot'); editPlotCard(r.id); }
+  else if(r.type==='timeline'){ setTab('timeline'); editTimelineEvent(r.id); }
+  else if(r.type==='relation'){ setTab('relations'); editRelation(r.id); }
+  else if(r.type==='chapter'){ _msCurrentChapter=r.id; setTab('manuscript'); }
+  else if(r.type==='scene'){ _scCurScene=r.id; setTab('scenario'); }
+  else if(r.type==='memo'){ _flashId=r.id; setTab('memo'); }
+}
+function openSearch(){
+  if(!curProject()){ alert("先に作品を作成してください"); return; }
+  openModal(`<div class="menu-head"><span class="menu-title">検索（この作品内）</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <div class="field"><input id="srchInput" placeholder="キャラ・世界観・本文・メモなどを検索…" autocomplete="off"></div>
+    <div class="srch-results" id="srchResults"><div class="muted" style="font-size:13px;padding:6px 2px">キーワードを入力してください。</div></div>`,
+    (root)=>{
+      const inp=root.querySelector("#srchInput"), host=root.querySelector("#srchResults");
+      inp.oninput=()=>{ const q=inp.value; const res=searchProject(q);
+        if(!q.trim()){ host.innerHTML=`<div class="muted" style="font-size:13px;padding:6px 2px">キーワードを入力してください。</div>`; return; }
+        if(!res.length){ host.innerHTML=`<div class="muted" style="font-size:13px;padding:6px 2px">該当なし</div>`; return; }
+        host.innerHTML=res.map((r,i)=>`<button class="srch-item" data-i="${i}"><span class="srch-type">${r.sub}</span><span class="srch-label">${esc(r.label)}</span></button>`).join("");
+        host.querySelectorAll(".srch-item").forEach(b=>{ b.onclick=()=>jumpToResult(res[+b.dataset.i]); });
+      };
+    });
+  const modal=document.querySelector(".overlay .modal"); if(modal) modal.style.maxWidth="560px";
+}
+// 破壊的操作は「⋯」メニューに隠す（直接ボタンを置かない）
+function openDeleteMenu(title, delLabel, onDelete){
+  openModal(`<div class="menu-head"><span class="menu-title">${esc(title)}</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <button class="menu-item danger" id="dmDel">${esc(delLabel)}</button>`,
+    (root)=>{ root.querySelector("#dmDel").onclick=()=>{ closeModal(); onDelete(); }; });
+}
+window.openProjectModal=openProjectModal;
+
+// ============================ メニュー（作品の削除） ============================
+const GUEST_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-5 0-9 2.5-9 6v1h18v-1c0-3.5-4-6-9-6Z"/></svg>`;
+function openMenu(){
+  const p=curProject();
+  let avatar, name, sub, action="";
+  if(fbUser){
+    const dn=fbUser.displayName||fbUser.email||"ユーザー";
+    avatar=`<div class="menu-avatar">${esc(dn.trim().charAt(0).toUpperCase())}</div>`;
+    name=esc(dn); sub=`<span class="sync-dot"></span>同期中`;
+    action=`<button class="btn" id="mLogout">ログアウト</button>`;
+  }else if(fbAuth){
+    avatar=`<div class="menu-avatar guest">${GUEST_ICON}</div>`;
+    name="ゲスト"; sub="この端末に保存";
+    action=`<button class="btn primary" id="mLogin">ログイン</button>`;
+  }else{
+    avatar=`<div class="menu-avatar guest">${GUEST_ICON}</div>`;
+    name="ローカルモード"; sub="この端末に保存";
+  }
+  openModal(`
+    <div class="menu-head"><span class="menu-title">アカウント</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <div class="menu-acct">${avatar}
+      <div class="menu-acct-txt"><div class="menu-acct-name">${name}</div><div class="menu-acct-sub">${sub}</div></div>
+      ${action}</div>
+    ${p?`<div class="menu-sep"></div><button class="menu-item danger" id="mDelProj">この作品を削除</button>`:""}`,
+    (root)=>{
+      const lb=root.querySelector("#mLogin"); if(lb) lb.onclick=()=>{ closeModal(); login(); };
+      const lo=root.querySelector("#mLogout"); if(lo) lo.onclick=()=>{ closeModal(); logout(); };
+      if(p) root.querySelector("#mDelProj").onclick=()=>{
+        if(!confirm(`作品「${p.title}」を削除します。元に戻せません。よろしいですか？`)) return;
+        const delId=p.id;
+        delete state.data[p.id]; state.projects=state.projects.filter(x=>x.id!==p.id);
+        state.currentId=state.projects[0]?.id||null; save(); deleteRemote(delId); closeModal(); renderAll();
+      };
+    });
+}
+
+// ============================ Firebase（Googleログイン＆クラウド同期） ============================
+const firebaseConfig = {
+  apiKey: "AIzaSyAZxn4oN_Ko85sPIfTSHxI6zE0GYomqw8g",
+  authDomain: "fabula-5af47.firebaseapp.com",
+  projectId: "fabula-5af47",
+  storageBucket: "fabula-5af47.firebasestorage.app",
+  messagingSenderId: "213097655231",
+  appId: "1:213097655231:web:40dc4c7a9db1b4b8c98f0a",
+  measurementId: "G-4KCXWWGF6B"
+};
+let fbAuth=null, fbDb=null, fbUser=null;
+
+function initFirebase(){
+  if(typeof firebase === "undefined"){ console.warn("[Fabula] Firebase SDK未読込。ローカルモードで動作します。"); updateAuthChip(); return; }
+  try{
+    firebase.initializeApp(firebaseConfig);
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+    fbAuth.onAuthStateChanged(onAuthChanged);
+  }catch(e){ console.warn("[Fabula] Firebase初期化失敗:", e); }
+  updateAuthChip();
+}
+function login(){
+  if(!fbAuth){ alert("ログインにはオンライン接続（localhostでの起動）が必要です"); return; }
+  fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>{
+    if(e.code!=="auth/popup-closed-by-user" && e.code!=="auth/cancelled-popup-request") alert("ログインに失敗しました: "+e.message);
+  });
+}
+function logout(){ if(fbAuth) fbAuth.signOut(); }
+
+async function onAuthChanged(u){
+  fbUser = u;
+  updateAuthChip();
+  if(u){
+    try{ await pullFromCloud(); }catch(e){ console.warn("[Fabula] クラウド取得失敗:", e); }
+    renderAll();
+  }
+}
+
+function serializeProject(id){
+  const p = state.projects.find(x=>x.id===id); if(!p) return null;
+  const data = state.data[id] || emptyProjectData();
+  // 原稿の本文は章ごとに別ドキュメント(chapters)に保存 → 作品本体には目次(id/title)だけ入れて1MB上限を回避
+  const ms = data.manuscript || {chapters:[]};
+  const slim = { ...data, manuscript:{ chapters:(ms.chapters||[]).map(c=>({id:c.id,title:c.title})) } };
+  return { title:p.title, createdAt:p.createdAt||Date.now(), data: slim };
+}
+function projectsCol(){ return fbDb.collection("users").doc(fbUser.uid).collection("projects"); }
+function chaptersCol(pid){ return projectsCol().doc(pid).collection("chapters"); }
+
+async function pullFromCloud(){
+  if(!fbUser||!fbDb) return;
+  const snap = await projectsCol().get();
+  const remote = {};
+  snap.forEach(d=> remote[d.id]=d.data());
+  // 初回ログイン: この端末にしか無い作品はクラウドへ退避（本体＋各章）
+  for(const p of [...state.projects]){
+    if(!remote[p.id]){
+      const doc = serializeProject(p.id); if(!doc) continue;
+      await projectsCol().doc(p.id).set(doc);
+      for(const ch of (state.data[p.id]?.manuscript?.chapters||[])){
+        await chaptersCol(p.id).doc(ch.id).set({ title:ch.title||"", body:ch.body||"" });
+      }
+      remote[p.id] = doc;
+    }
+  }
+  // クラウドの内容で state を作り直す
+  const ids = Object.keys(remote);
+  state.projects = ids.map(id=>({ id, title:remote[id].title||"(無題)", createdAt:remote[id].createdAt||0 }))
+                      .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  state.data = {};
+  ids.forEach(id=> state.data[id] = remote[id].data || emptyProjectData());
+  // 各作品の章本文を chapters サブコレクションから読み込む
+  for(const id of ids){
+    const data = state.data[id];
+    if(!data.manuscript) data.manuscript = {chapters:[]};
+    try{
+      const chSnap = await chaptersCol(id).get();
+      const bodies = {}; chSnap.forEach(c=> bodies[c.id]=c.data());
+      (data.manuscript.chapters||[]).forEach(ch=>{
+        const b=bodies[ch.id]; if(b){ ch.body=b.body||""; if(b.title) ch.title=b.title; } else { ch.body=ch.body||""; }
+      });
+    }catch(e){ console.warn("[Fabula] 章取得失敗 "+id+":", e); }
+  }
+  if(!state.currentId || !state.data[state.currentId]) state.currentId = state.projects[0]?.id || null;
+  saveLocal();
+}
+
+let _syncTimer=null; const _syncSet=new Set();
+function queueSync(id){
+  if(!fbUser||!fbDb||!id) return;
+  _syncSet.add(id);
+  updateAuthChip("saving");
+  clearTimeout(_syncTimer);
+  _syncTimer=setTimeout(flushSync, 1000);
+}
+async function flushSync(){
+  if(!fbUser||!fbDb) return;
+  const ids=[..._syncSet]; _syncSet.clear();
+  for(const id of ids){
+    if(!state.data[id]) continue;             // 既に削除された作品は送らない
+    const doc = serializeProject(id); if(!doc) continue;
+    try{ await projectsCol().doc(id).set(doc); }
+    catch(e){ console.warn("[Fabula] 同期失敗 "+id+":", e); }
+  }
+  updateAuthChip();
+}
+async function deleteRemote(id){
+  if(!fbUser||!fbDb||!id) return;
+  try{
+    const chSnap = await chaptersCol(id).get();          // 章サブコレクションも一緒に削除
+    await Promise.all(chSnap.docs.map(d=>d.ref.delete()));
+    await projectsCol().doc(id).delete();
+  }catch(e){ console.warn("[Fabula] リモート削除失敗:", e); }
+}
+
+// ---- 原稿の章ごと同期（本文は章ドキュメントに別保存） ----
+let _chSyncTimer=null; const _chSyncSet=new Set();   // "pid::chId"
+function queueChapterSync(pid, chId){
+  if(!fbUser||!fbDb||!pid||!chId) return;
+  _chSyncSet.add(pid+"::"+chId);
+  updateAuthChip("saving");
+  clearTimeout(_chSyncTimer);
+  _chSyncTimer=setTimeout(flushChapterSync, 1000);
+}
+async function flushChapterSync(){
+  if(!fbUser||!fbDb) return;
+  const keys=[..._chSyncSet]; _chSyncSet.clear();
+  for(const k of keys){
+    const [pid,chId]=k.split("::");
+    const data=state.data[pid]; if(!data) continue;
+    const ch=(data.manuscript?.chapters||[]).find(c=>c.id===chId); if(!ch) continue;
+    try{ await chaptersCol(pid).doc(chId).set({ title:ch.title||"", body:ch.body||"" }); }
+    catch(e){ console.warn("[Fabula] 章同期失敗 "+k+":", e); }
+  }
+  updateAuthChip();
+}
+function deleteChapterRemote(pid, chId){
+  if(!fbUser||!fbDb||!pid||!chId) return;
+  chaptersCol(pid).doc(chId).delete().catch(e=>console.warn("[Fabula] 章削除失敗:", e));
+}
+
+function updateAuthChip(status){
+  const chip=document.getElementById("authChip"); if(!chip) return;
+  if(!fbAuth){ chip.style.display="none"; return; }   // SDK無し=ローカルモード（チップ非表示）
+  chip.style.display="inline-flex";
+  if(fbUser){
+    const name=fbUser.displayName||fbUser.email||"ユーザー";
+    const short=name.length>10?name.slice(0,10)+"…":name;
+    chip.innerHTML=`<span class="sync-dot ${status==="saving"?"saving":""}"></span>${esc(short)}`;
+    chip.title=(status==="saving"?"同期中… ":"☁ 同期済み ")+name;
+    chip.onclick=openMenu;
+  }else{
+    chip.textContent="ログイン"; chip.title="Googleでログイン"; chip.onclick=login;
+  }
+}
+
+// ============================ 起動（テーマはOSのライト/ダークに自動追従） ============================
+document.getElementById("projSelect").onchange=e=>switchProject(e.target.value);
+document.getElementById("newProjBtn").onclick=openProjectModal;
+document.getElementById("menuBtn").onclick=openMenu;
+document.getElementById("searchBtn").onclick=openSearch;
+document.getElementById("bookSettingsBtn").onclick=openBookSettings;
+document.getElementById("bookPrintBtn").onclick=printBook;
+document.getElementById("bookCloseBtn").onclick=closeBook;
+document.getElementById("tabs").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-view]"); if(!b)return;
+  if(b.dataset.view===currentView) return;
+  currentView=b.dataset.view; _tagFilter=null;
+  document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("active",x===b));
+  renderView();
+  animateMain();
+});
+if(!state.currentId && state.projects[0]) state.currentId=state.projects[0].id;
+renderAll();
+initFirebase();
+</script>
+</body>
+</html>
