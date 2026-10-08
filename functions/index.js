@@ -23,7 +23,8 @@ const DISCORD_BOT_TOKEN = defineSecret("DISCORD_BOT_TOKEN");
 
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
-const SUPPORTER_ROLE_ID = process.env.DISCORD_SUPPORTER_ROLE_ID;
+// 複数ロール対応：DISCORD_SUPPORTER_ROLE_ID はカンマ区切りで複数OK（いずれか1つ持っていれば支援者）
+const SUPPORTER_ROLE_IDS = (process.env.DISCORD_SUPPORTER_ROLE_ID || "").split(",").map((s) => s.trim()).filter(Boolean);
 const REGION = "asia-northeast1";
 
 // ---- Discordログイン: OAuth code → ロール確認 → カスタムトークン ----
@@ -33,7 +34,7 @@ exports.discordAuth = onCall(
     const code = req.data && req.data.code;
     const redirectUri = req.data && req.data.redirectUri;
     if (!code || !redirectUri) throw new HttpsError("invalid-argument", "code と redirectUri が必要です");
-    if (!CLIENT_ID || !GUILD_ID || !SUPPORTER_ROLE_ID) throw new HttpsError("failed-precondition", "サーバー設定(環境変数)が未設定です");
+    if (!CLIENT_ID || !GUILD_ID || SUPPORTER_ROLE_IDS.length === 0) throw new HttpsError("failed-precondition", "サーバー設定(環境変数)が未設定です");
 
     // 1) code → アクセストークン
     const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
@@ -70,8 +71,11 @@ exports.discordAuth = onCall(
       throw new HttpsError("internal", `メンバー情報の取得に失敗しました (HTTP ${memRes.status})`);
     }
     const member = await memRes.json();
-    const isSupporter = Array.isArray(member.roles) && member.roles.includes(SUPPORTER_ROLE_ID);
-    if (!isSupporter) throw new HttpsError("permission-denied", "支援者ロールがありません");
+    const isSupporter = Array.isArray(member.roles) && member.roles.some((r) => SUPPORTER_ROLE_IDS.includes(r));
+    if (!isSupporter) {
+      console.error("[discordAuth] role mismatch. member.roles=", member.roles, " expected one of SUPPORTER_ROLE_IDS=", SUPPORTER_ROLE_IDS);
+      throw new HttpsError("permission-denied", "支援者ロールがありません");
+    }
 
     // 4) カスタムトークン発行（uid は Discordユーザーid由来＝同じDiscord＝同じデータ）
     const uid = `discord_${discordId}`;
