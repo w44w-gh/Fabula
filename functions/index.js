@@ -15,7 +15,9 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+// ※ firestore は discordAuth(ログイン)では使わない。モジュール先頭でrequireすると
+//   firestoreの読み込み失敗でdiscordAuthのコンテナまで起動失敗する巻き添えになるため、
+//   redeemCodeの中だけで遅延requireする（ログインをfirestore問題から切り離す）。
 const crypto = require("crypto");
 
 initializeApp();
@@ -92,6 +94,7 @@ exports.redeemCode = onCall({ region: REGION }, async (req) => {
   const code = ((req.data && req.data.code) || "").trim();
   if (!code) throw new HttpsError("invalid-argument", "コードを入力してください");
 
+  const { getFirestore, FieldValue } = require("firebase-admin/firestore");   // 遅延require（ここでだけ使う）
   const db = getFirestore();
   const ref = db.collection("codes").doc(code);
   // ※ トランザクション内で HttpsError を throw すると internal に化けるため、
