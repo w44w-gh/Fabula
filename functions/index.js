@@ -13,10 +13,12 @@
  */
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
-const admin = require("firebase-admin");
+const { initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const crypto = require("crypto");
 
-admin.initializeApp();
+initializeApp();
 
 const DISCORD_CLIENT_SECRET = defineSecret("DISCORD_CLIENT_SECRET");
 const DISCORD_BOT_TOKEN = defineSecret("DISCORD_BOT_TOKEN");
@@ -79,7 +81,7 @@ exports.discordAuth = onCall(
 
     // 4) カスタムトークン発行（uid は Discordユーザーid由来＝同じDiscord＝同じデータ）
     const uid = `discord_${discordId}`;
-    const customToken = await admin.auth().createCustomToken(uid, { supporter: true, via: "discord" });
+    const customToken = await getAuth().createCustomToken(uid, { supporter: true, via: "discord" });
     return { token: customToken, name: me.global_name || me.username || "" };
   }
 );
@@ -90,7 +92,7 @@ exports.redeemCode = onCall({ region: REGION }, async (req) => {
   const code = ((req.data && req.data.code) || "").trim();
   if (!code) throw new HttpsError("invalid-argument", "コードを入力してください");
 
-  const db = admin.firestore();
+  const db = getFirestore();
   const ref = db.collection("codes").doc(code);
   // ※ トランザクション内で HttpsError を throw すると internal に化けるため、
   //   理由は reason に積んで正常 return し、トランザクション外で throw する。
@@ -106,12 +108,12 @@ exports.redeemCode = onCall({ region: REGION }, async (req) => {
     let assignedUid = d.uid;
     if (!d.claimed || !assignedUid) {
       assignedUid = "code_" + crypto.randomUUID().replace(/-/g, ""); // コードと分離した安定uid
-      tx.update(ref, { claimed: true, uid: assignedUid, claimedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.update(ref, { claimed: true, uid: assignedUid, claimedAt: FieldValue.serverTimestamp() });
     }
     uid = assignedUid;
   });
   if (reason) throw new HttpsError(reason[0], reason[1]);
 
-  const customToken = await admin.auth().createCustomToken(uid, { supporter: true, via: "code" });
+  const customToken = await getAuth().createCustomToken(uid, { supporter: true, via: "code" });
   return { token: customToken };
 });
