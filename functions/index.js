@@ -63,7 +63,12 @@ exports.discordAuth = onCall(
       headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN.value()}` },
     });
     if (memRes.status === 404) throw new HttpsError("permission-denied", "サーバーのメンバーではありません");
-    if (!memRes.ok) throw new HttpsError("internal", "メンバー情報の取得に失敗しました");
+    if (!memRes.ok) {
+      const body = await memRes.text().catch(() => "");
+      console.error("[discordAuth] member fetch failed", memRes.status, body);
+      // 403=Server Members Intent未有効 or Bot権限不足 / 401=Botトークン不正 のことが多い
+      throw new HttpsError("internal", `メンバー情報の取得に失敗しました (HTTP ${memRes.status})`);
+    }
     const member = await memRes.json();
     const isSupporter = Array.isArray(member.roles) && member.roles.includes(SUPPORTER_ROLE_ID);
     if (!isSupporter) throw new HttpsError("permission-denied", "支援者ロールがありません");
