@@ -1,0 +1,11 @@
+{
+  "name": "fabula-functions",
+  "description": "Fabula backend: Discordロール認証 / 1回限りコード照合 → Firebaseカスタムトークン発行",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.1.0"
+  },
+  "private": true
+}
