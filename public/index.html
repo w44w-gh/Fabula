@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
 <style>
   :root{
     --bg:#f4f5f5; --surface:#ffffff; --surface-2:#ececee; --text:#17191c; --text-2:#6b7075;
@@ -348,7 +349,26 @@
 const STORE_KEY = "fabula:v1";
 const COLORS = ["#0e8c7f","#e5484d","#f5a524","#30a46c","#3b7dd8","#e93d82","#0091ff","#8d6e63","#12a594","#d6409f"];
 
+// ---- 暗号化（作品ごとAES-GCM。鍵は fabula:keys に別保存。localStorage/クラウドは暗号文、メモリ上は復号済み平文） ----
+const _b64=(b)=>btoa(String.fromCharCode(...new Uint8Array(b)));
+const _ub64=(s)=>Uint8Array.from(atob(s), c=>c.charCodeAt(0));
+async function newCryptoKey(){ return crypto.subtle.generateKey({name:"AES-GCM",length:256}, true, ["encrypt","decrypt"]); }
+async function exportKeyStr(k){ return _b64(await crypto.subtle.exportKey("raw", k)); }
+async function importKeyStr(s){ return crypto.subtle.importKey("raw", _ub64(s), {name:"AES-GCM"}, true, ["encrypt","decrypt"]); }
+async function encObj(obj, key){ const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv}, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return { iv:_b64(iv), ct:_b64(ct) }; }
+async function decObj(enc, key){ const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:_ub64(enc.iv)}, key, _ub64(enc.ct));
+  return JSON.parse(new TextDecoder().decode(pt)); }
+function loadKeyStrs(){ try{ return JSON.parse(localStorage.getItem("fabula:keys"))||{}; }catch(e){ return {}; } }
+let _keyStrs=loadKeyStrs(); const _keyCache={};
+function saveKeyStrs(){ try{ localStorage.setItem("fabula:keys", JSON.stringify(_keyStrs)); }catch(e){} }
+async function getKey(id){ if(_keyCache[id]) return _keyCache[id]; const s=_keyStrs[id]; if(!s) return null;
+  try{ const k=await importKeyStr(s); _keyCache[id]=k; return k; }catch(e){ return null; } }
+
+let _locked={};                       // { pid: {__enc} } 復号できていない暗号化作品（state.dataには入れない）
 let state = load();
+partitionLocked();
 function load(){
   try{
     const raw = localStorage.getItem(STORE_KEY) || localStorage.getItem("storyforge:v1"); // 旧名(StoryForge)のデータも自動で引き継ぐ
@@ -356,7 +376,28 @@ function load(){
   }catch(e){}
   return { projects:[], currentId:null, data:{} };
 }
-function saveLocal(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){ alert("保存に失敗しました（容量超過かも）: "+e.message); } }
+function partitionLocked(){ _locked={}; for(const p of (state.projects||[])){ const d=state.data[p.id]; if(d&&d.__enc){ _locked[p.id]=d; delete state.data[p.id]; } } }
+async function unlockAvailable(){   // 鍵を持っている暗号化作品を復号してstateへ
+  let changed=false;
+  for(const id of Object.keys(_locked)){ const key=await getKey(id); if(!key) continue;
+    try{ state.data[id]=await decryptLocked(id, key); delete _locked[id]; changed=true; }catch(e){ console.warn("[Fabula] 復号失敗 "+id); } }
+  if(changed) renderAll();
+}
+// localStorage保存：暗号化作品は暗号文で書く（crypto非同期のため直列化。非暗号化は従来どおり平文）
+let _saveChain=Promise.resolve();
+function saveLocal(){ _saveChain=_saveChain.then(doSaveLocal, doSaveLocal); return _saveChain; }
+async function doSaveLocal(){
+  try{
+    const data={};
+    for(const p of state.projects){ const id=p.id;
+      if(_locked[id]){ data[id]=_locked[id]; continue; }        // 未復号はそのまま保持
+      const plain=state.data[id]; if(plain===undefined) continue;
+      if(p.encrypted){ const key=await getKey(id); data[id]= key ? { __enc: await encObj(plain, key) } : plain; }  // 鍵欠落時は喪失回避で平文
+      else data[id]=plain;
+    }
+    localStorage.setItem(STORE_KEY, JSON.stringify({ projects:state.projects, currentId:state.currentId, data }));
+  }catch(e){ console.warn("[Fabula] ローカル保存失敗:", e); }
+}
 function save(){ saveLocal(); queueSync(state.currentId); }   // ローカル保存＋（ログイン時）クラウド同期
 const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
@@ -388,7 +429,7 @@ function esc(s){ return (s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">
 // ============================ プロジェクト ============================
 function renderProjectBar(){
   const sel = document.getElementById("projSelect");
-  sel.innerHTML = state.projects.map(p=>`<option value="${p.id}">${esc(p.title)}</option>`).join("")
+  sel.innerHTML = state.projects.map(p=>`<option value="${p.id}">${p.encrypted?'🔒 ':''}${esc(p.title)}</option>`).join("")
     || `<option disabled selected>作品がありません</option>`;
   if(state.currentId) sel.value = state.currentId;
   const p = curProject();
@@ -400,17 +441,52 @@ function openProjectModal(){
   if(!guardAdd('projects', state.projects.length)) return;
   openModal(`<h3>新しい作品</h3>
     <div class="field"><label>タイトル</label><input id="pTitle" placeholder="作品名" autofocus></div>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:2px 0 6px;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="pEnc" style="margin-top:3px;width:auto;flex:0 0 auto"><span>この作品を暗号化する<br>
+      <span class="muted" style="font-size:11.5px">本人のみ復号。別端末で開くには復元キーが必要・鍵を失うと復元できません</span></span></label>
     <div class="modal-actions">
       <button class="btn" data-close>キャンセル</button>
       <button class="btn primary" id="pCreate">作成</button>
     </div>`, (root)=>{
-      const create=()=>{
+      const create=async ()=>{
         const title=root.querySelector("#pTitle").value.trim(); if(!title){alert("タイトルを入力してください");return;}
-        createProject(title, emptyProjectData()); save(); closeModal(); renderAll();
+        const enc=root.querySelector("#pEnc").checked;
+        const id=createProject(title, emptyProjectData());
+        if(enc){
+          const key=await newCryptoKey(); const s=await exportKeyStr(key);
+          _keyStrs[id]=s; saveKeyStrs(); _keyCache[id]=key;
+          const pr=state.projects.find(x=>x.id===id); if(pr) pr.encrypted=true;
+          save(); closeModal(); renderAll(); showRecoveryKey(s);
+        } else { save(); closeModal(); renderAll(); }
       };
       root.querySelector("#pCreate").onclick=create;
       root.querySelector("#pTitle").addEventListener("keydown",e=>{ if(e.key==="Enter") create(); });
     });
+}
+function showRecoveryKey(s){
+  openModal(`<h3>復元キー（必ず保管してください）</h3>
+    <p style="font-size:13.5px;line-height:1.7;margin:2px 0 8px">この作品は暗号化されました。<b>別の端末で開くにはこのキーが必要</b>です。<br>
+      <span class="muted">キーを失うとデータは誰にも復元できません。安全な場所に保管してください。</span></p>
+    <div class="field"><textarea id="recKey" readonly style="font-family:monospace;font-size:12px;min-height:58px;width:100%">${esc(s)}</textarea></div>
+    <div class="modal-actions"><button class="btn" id="recCopy">コピー</button><button class="btn primary" data-close>保管しました</button></div>`,
+    (root)=>{ root.querySelector("#recCopy").onclick=()=>{ try{ navigator.clipboard.writeText(s); root.querySelector("#recCopy").textContent="コピー済み"; }catch(e){ const t=root.querySelector("#recKey"); t.focus(); t.select(); } }; },
+    {dismissible:false});   // 外クリックで閉じない（保管前に消えないように）
+}
+// メニューからの復元キー再表示（この端末に鍵がある暗号化作品のみ。既定は伏字→「表示する」で表示）
+const _KEY_MASK="••••••••••••••••••••••••••••••••";
+function showStoredKey(p){
+  const s=_keyStrs[p.id];
+  if(!s){ alert("この端末に復元キーがありません（別端末ならロック画面でキーを入力してください）"); return; }
+  openModal(`<h3>復元キー：${esc(p.title)}</h3>
+    <p class="muted" style="font-size:13px;line-height:1.7;margin:2px 0 8px">別の端末で開くときに必要です。周囲に見られない場所で表示・保管してください。</p>
+    <div class="field"><textarea id="recKey" readonly style="font-family:monospace;font-size:12px;min-height:58px;width:100%">${_KEY_MASK}</textarea></div>
+    <div class="modal-actions"><button class="btn" id="recReveal">表示する</button><button class="btn" id="recCopy">コピー</button><button class="btn primary" data-close>閉じる</button></div>`,
+    (root)=>{
+      const ta=root.querySelector("#recKey"); let shown=false;
+      root.querySelector("#recReveal").onclick=(e)=>{ shown=!shown; ta.value=shown?s:_KEY_MASK; e.target.textContent=shown?"隠す":"表示する"; };
+      root.querySelector("#recCopy").onclick=()=>{ try{ navigator.clipboard.writeText(s); root.querySelector("#recCopy").textContent="コピー済み"; }catch(err){ ta.value=s; shown=true; ta.focus(); ta.select(); } };
+    },
+    {dismissible:false});   // 外クリックで閉じない
 }
 
 // ============================ 各ビュー描画 ============================
@@ -433,7 +509,8 @@ function wireTags(scope){ (scope||document).querySelectorAll(".tag").forEach(el=
 // ---- 体験版の制限（上限値は下の LIMITS で調整可。isFull() は将来 Discord支援者判定に差し替え） ----
 const LIMITS = { projects:1, characters:5, world:10, plot:10, timeline:10, relations:10, chapters:2, scenes:3, memos:5 };
 const LIMIT_LABEL = { projects:'作品', characters:'キャラクター', world:'世界観の項目', plot:'プロットカード', timeline:'出来事', relations:'関係', chapters:'章', scenes:'シーン', memos:'メモ' };
-function isFull(){ try{ return localStorage.getItem('fabula:trial')!=='1'; }catch(e){ return true; } } // 暫定:通常フル / localStorage 'fabula:trial'='1' で体験版表示
+// supporterクレーム有り=確実にフル。未ログインは暫定で通常フル（'fabula:trial'='1'で体験版プレビュー）。※公開時は未支援者を体験版にするならここを fbSupporter 判定だけにする
+function isFull(){ if(fbSupporter) return true; try{ return localStorage.getItem('fabula:trial')!=='1'; }catch(e){ return true; } }
 function guardAdd(kind,count){ if(isFull()||count<LIMITS[kind]) return true; upsell(kind); return false; }
 function upsell(kind){ const n=LIMITS[kind], l=LIMIT_LABEL[kind]||kind;
   openModal(`<div class="menu-head"><span class="menu-title">体験版の上限です</span><button class="menu-x" data-close title="閉じる">✕</button></div>
@@ -449,9 +526,31 @@ function renderView(){
     renderCharBubbles();
     return;
   }
+  const _p=curProject();
+  if(_p && !state.data[_p.id]){ renderLockScreen(main, _p); renderCharBubbles(); return; }   // 暗号化＆未復号
   ({characters:renderCharacters, plot:renderPlot, world:renderWorld, relations:renderRelations, timeline:renderTimeline, manuscript:renderManuscript, scenario:renderScenario, memo:renderMemos}[currentView])(main);
   applyFlash();
   renderCharBubbles();
+}
+function renderLockScreen(main, p){
+  main.innerHTML=`<div class="empty"><div class="big">🔒 ${esc(p.title)}</div>
+    <p class="muted" style="font-size:13px;margin:6px 0 14px">この作品は暗号化されています。復元キーを入力してください。</p>
+    <div style="display:flex;gap:8px;justify-content:center;max-width:460px;margin:0 auto">
+      <input id="unlockKey" placeholder="復元キー" style="flex:1">
+      <button class="btn primary" id="unlockGo">復号</button></div>
+    <div id="unlockErr" style="color:var(--danger,#e5484d);font-size:12px;margin-top:8px;min-height:16px"></div></div>`;
+  const go=async ()=>{
+    const s=main.querySelector("#unlockKey").value.trim(); if(!s) return;
+    try{
+      const key=await importKeyStr(s);
+      const d=await decryptLocked(p.id, key);   // 復号できればキー正解
+      state.data[p.id]=d; delete _locked[p.id];
+      _keyStrs[p.id]=s; saveKeyStrs(); _keyCache[p.id]=key;
+      saveLocal(); renderAll();
+    }catch(e){ const el=main.querySelector("#unlockErr"); if(el) el.textContent="キーが違います"; }
+  };
+  main.querySelector("#unlockGo").onclick=go;
+  main.querySelector("#unlockKey").addEventListener("keydown",e=>{ if(e.key==="Enter") go(); });
 }
 // ---- キャラ・バブル（独立した丸バブルが画面に浮く。バネ物理でぽよん・ドラッグ移動・クリックで詳細） ----
 let _bubbleCharId=null, _bubSim=[], _bubRAF=null, _bubDrag=null, _detailSig=null;
@@ -1554,11 +1653,11 @@ function moveMemo(id,dir){ const a=memos();const i=a.findIndex(m=>m.id===id);con
 function deleteMemo(id){ const m=memos().find(x=>x.id===id); if(!m)return; if(!confirm("このメモを削除します。よろしいですか？"))return; cur().memos=memos().filter(x=>x.id!==id); save(); renderView(); }
 
 // ============================ モーダル ============================
-function openModal(html, onReady){
+function openModal(html, onReady, opts){
   const host=document.getElementById("overlayHost");
   host.innerHTML=`<div class="overlay"><div class="modal">${html}</div></div>`;
   const ov=host.querySelector(".overlay");
-  ov.addEventListener("click",e=>{ if(e.target===ov) closeModal(); });
+  if(!(opts&&opts.dismissible===false)) ov.addEventListener("click",e=>{ if(e.target===ov) closeModal(); });  // dismissible:falseで外クリック閉じ無効
   host.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModal);
   if(onReady) onReady(host.querySelector(".modal"));
   const f=host.querySelector("input,textarea,select"); if(f) f.focus();
@@ -1622,15 +1721,17 @@ const GUEST_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="curren
 function openMenu(){
   const p=curProject();
   let avatar, name, sub, action="";
+  let extra="";
   if(fbUser){
-    const dn=fbUser.displayName||fbUser.email||"ユーザー";
-    avatar=`<div class="menu-avatar">${esc(dn.trim().charAt(0).toUpperCase())}</div>`;
-    name=esc(dn); sub=`<span class="sync-dot"></span>同期中`;
+    const dn=acctName();
+    avatar=`<div class="menu-avatar">${esc((dn.trim()[0]||'U').toUpperCase())}</div>`;
+    name=esc(dn); sub=`<span class="sync-dot"></span>${fbSupporter?"支援者・クラウド同期":"クラウド同期"}`;
     action=`<button class="btn" id="mLogout">ログアウト</button>`;
   }else if(fbAuth){
     avatar=`<div class="menu-avatar guest">${GUEST_ICON}</div>`;
-    name="ゲスト"; sub="この端末に保存";
-    action=`<button class="btn primary" id="mLogin">ログイン</button>`;
+    name="ゲスト"; sub="この端末に保存（体験版）";
+    action=`<button class="btn primary" id="mLogin">Discordでログイン</button>`;
+    extra=`<button class="menu-item" id="mCode">コードで有効化</button>`;
   }else{
     avatar=`<div class="menu-avatar guest">${GUEST_ICON}</div>`;
     name="ローカルモード"; sub="この端末に保存";
@@ -1640,21 +1741,25 @@ function openMenu(){
     <div class="menu-acct">${avatar}
       <div class="menu-acct-txt"><div class="menu-acct-name">${name}</div><div class="menu-acct-sub">${sub}</div></div>
       ${action}</div>
+    ${extra}
     <div class="menu-sep"></div>
     <button class="menu-item" id="mNewProj">＋ 作品を追加</button>
     <button class="menu-item" id="mImport">作品をインポート</button>
     ${p?`<div class="menu-sep"></div>
       <button class="menu-item" id="mRename">作品名を変更</button>
       <button class="menu-item" id="mExport">この作品をエクスポート</button>
+      ${(p.encrypted&&_keyStrs[p.id])?`<button class="menu-item" id="mShowKey">復元キーを表示</button>`:""}
       <div class="menu-sep"></div>
       <button class="menu-del" id="mDelProj">この作品を削除</button>`:""}`,
     (root)=>{
-      const lb=root.querySelector("#mLogin"); if(lb) lb.onclick=()=>{ closeModal(); login(); };
+      const lb=root.querySelector("#mLogin"); if(lb) lb.onclick=()=>{ closeModal(); loginDiscord(); };
+      const cb=root.querySelector("#mCode"); if(cb) cb.onclick=()=>{ closeModal(); openCodeModal(); };
       const lo=root.querySelector("#mLogout"); if(lo) lo.onclick=()=>{ closeModal(); logout(); };
       root.querySelector("#mNewProj").onclick=()=>{ closeModal(); openProjectModal(); };
       root.querySelector("#mImport").onclick=()=>{ closeModal(); importProject(); };
       if(p){
         root.querySelector("#mExport").onclick=()=>{ closeModal(); exportProject(p); };
+        const sk=root.querySelector("#mShowKey"); if(sk) sk.onclick=()=>{ closeModal(); showStoredKey(p); };
         root.querySelector("#mRename").onclick=()=>openRenameProject(p);
         root.querySelector("#mDelProj").onclick=()=>{
           if(!confirm(`作品「${p.title}」を削除します。元に戻せません。よろしいですか？`)) return;
@@ -1734,7 +1839,12 @@ const firebaseConfig = {
   appId: "1:213097655231:web:40dc4c7a9db1b4b8c98f0a",
   measurementId: "G-4KCXWWGF6B"
 };
-let fbAuth=null, fbDb=null, fbUser=null;
+let fbAuth=null, fbDb=null, fbFunctions=null, fbUser=null, fbSupporter=false;
+let fbName=(()=>{ try{ return localStorage.getItem("fabula:name")||""; }catch(e){ return ""; } })();
+// Discord連携（Client IDは公開値。Secret/Bot Tokenはサーバーのシークレット）
+const DISCORD_CLIENT_ID = "1557578246931882005";
+const DISCORD_REDIRECT_URI = location.origin + "/";   // ← Discord Developer Portal の OAuth2 Redirects に「完全一致」で登録すること
+function acctName(){ return (fbUser&&fbUser.displayName) || fbName || "支援者"; }
 
 function initFirebase(){
   if(typeof firebase === "undefined"){ console.warn("[Fabula] Firebase SDK未読込。ローカルモードで動作します。"); updateAuthChip(); return; }
@@ -1742,20 +1852,63 @@ function initFirebase(){
     firebase.initializeApp(firebaseConfig);
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
+    try{ fbFunctions = firebase.app().functions("asia-northeast1"); }catch(e){ fbFunctions=null; }
     fbAuth.onAuthStateChanged(onAuthChanged);
+    handleDiscordRedirect();   // ?code=... で戻ってきたら処理
   }catch(e){ console.warn("[Fabula] Firebase初期化失敗:", e); }
   updateAuthChip();
 }
-function login(){
-  if(!fbAuth){ alert("ログインにはオンライン接続（localhostでの起動）が必要です"); return; }
-  fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>{
-    if(e.code!=="auth/popup-closed-by-user" && e.code!=="auth/cancelled-popup-request") alert("ログインに失敗しました: "+e.message);
-  });
+// Discordの認可画面へ送る（戻りは ?code=... でこのページに返る）
+function loginDiscord(){
+  if(!fbFunctions){ alert("ログインにはオンライン接続（localhost等での起動）が必要です"); return; }
+  location.href = "https://discord.com/api/oauth2/authorize?client_id="+DISCORD_CLIENT_ID
+    + "&redirect_uri="+encodeURIComponent(DISCORD_REDIRECT_URI)
+    + "&response_type=code&scope=identify";
 }
-function logout(){ if(fbAuth) fbAuth.signOut(); }
+async function handleDiscordRedirect(){
+  const params=new URLSearchParams(location.search);
+  const code=params.get("code"), err=params.get("error");
+  if(err){ history.replaceState(null,"",location.pathname); alert("Discord認証がキャンセルされました"); return; }
+  if(!code) return;
+  history.replaceState(null,"",location.pathname);   // codeは単回使用なのですぐURLから消す
+  if(!fbFunctions){ alert("認証処理を実行できません（オンライン接続が必要）"); return; }
+  updateAuthChip("saving");
+  try{
+    const res = await fbFunctions.httpsCallable("discordAuth")({ code, redirectUri: DISCORD_REDIRECT_URI });
+    fbName = res.data.name||""; try{ localStorage.setItem("fabula:name", fbName); }catch(e){}
+    await fbAuth.signInWithCustomToken(res.data.token);   // 後処理は onAuthChanged
+  }catch(e){ updateAuthChip(); showLoginFail(e.message||e.code||String(e)); }
+}
+// Discordログイン失敗（支援者ロール無し・未参加 等）→ 理由を見せて、アクセスコードでの有効化へ誘導
+function showLoginFail(msg){
+  openModal(`<h3>ログインできませんでした</h3>
+    <p style="font-size:14px;line-height:1.75;margin:2px 0 12px">${esc(msg)}<br>
+      <span class="muted">アクセスコードをお持ちの場合は、コードで有効化できます。</span></p>
+    <div class="modal-actions"><button class="btn" data-close>閉じる</button>
+      <button class="btn primary" id="toCode">コードで有効化</button></div>`,
+    (root)=>{ root.querySelector("#toCode").onclick=()=>{ closeModal(); openCodeModal(); }; });
+}
+// 1回限りコードでの有効化（Discordなしの支援者向け）
+function openCodeModal(){
+  openModal(`<h3>コードで有効化</h3>
+    <div class="field"><label>アクセスコード</label><input id="acCode" autofocus></div>
+    <div class="modal-actions"><button class="btn" data-close>キャンセル</button><button class="btn primary" id="acGo">有効化</button></div>`,
+    (root)=>{
+      const go=async ()=>{ const c=root.querySelector("#acCode").value.trim(); if(!c){ alert("コードを入力してください"); return; }
+        if(!fbFunctions){ alert("ログインにはオンライン接続が必要です"); return; }
+        const btn=root.querySelector("#acGo"); btn.disabled=true;
+        try{ const res=await fbFunctions.httpsCallable("redeemCode")({ code:c }); await fbAuth.signInWithCustomToken(res.data.token); closeModal(); }
+        catch(e){ btn.disabled=false; alert("コードの確認に失敗しました: "+(e.message||e.code||e)); } };
+      root.querySelector("#acGo").onclick=go;
+      root.querySelector("#acCode").addEventListener("keydown",e=>{ if(e.key==="Enter") go(); });
+    });
+}
+function logout(){ if(fbAuth) fbAuth.signOut(); fbSupporter=false; fbName=""; try{ localStorage.removeItem("fabula:name"); }catch(e){} }
 
 async function onAuthChanged(u){
   fbUser = u;
+  if(u){ try{ const r=await u.getIdTokenResult(); fbSupporter = !!(r.claims && r.claims.supporter===true); }catch(e){ fbSupporter=false; } }
+  else { fbSupporter=false; }
   updateAuthChip();
   if(u){
     try{ await pullFromCloud(); }catch(e){ console.warn("[Fabula] クラウド取得失敗:", e); }
@@ -1763,13 +1916,36 @@ async function onAuthChanged(u){
   }
 }
 
-function serializeProject(id){
+// クラウド保存用ドキュメント（暗号化作品は enc に暗号文。鍵が無ければ null＝同期しない＝平文漏れ防止）
+async function cloudDoc(id){
   const p = state.projects.find(x=>x.id===id); if(!p) return null;
   const data = state.data[id] || emptyProjectData();
   // 原稿の本文は章ごとに別ドキュメント(chapters)に保存 → 作品本体には目次(id/title)だけ入れて1MB上限を回避
   const ms = data.manuscript || {chapters:[]};
   const slim = { ...data, manuscript:{ chapters:(ms.chapters||[]).map(c=>({id:c.id,title:c.title})) } };
-  return { title:p.title, createdAt:p.createdAt||Date.now(), data: slim };
+  const base = { title:p.title, createdAt:p.createdAt||Date.now() };
+  if(p.encrypted){ const key=await getKey(id); if(!key) return null;
+    return { ...base, encrypted:true, enc: await encObj(slim, key) }; }
+  return { ...base, data: slim };
+}
+async function cloudChapter(id, ch){   // 章ドキュメント（暗号化作品は暗号文）
+  const p = state.projects.find(x=>x.id===id);
+  if(p && p.encrypted){ const key=await getKey(id); if(!key) return null;
+    return { encrypted:true, enc: await encObj({ title:ch.title||"", body:ch.body||"" }, key) }; }
+  return { title:ch.title||"", body:ch.body||"" };
+}
+// ロック中作品の復号（localStorage形式=__enc / cloud形式=enc＋章enc の両対応）
+async function decryptLocked(id, key){
+  const L=_locked[id];
+  if(L.__enc) return await decObj(L.__enc, key);
+  const data=await decObj(L.enc, key);
+  if(!data.manuscript) data.manuscript={chapters:[]};
+  for(const ch of (data.manuscript.chapters||[])){
+    const ce=L.chEnc && L.chEnc[ch.id];
+    if(ce){ try{ const cb=await decObj(ce, key); ch.body=cb.body||""; if(cb.title) ch.title=cb.title; }catch(e){ ch.body=ch.body||""; } }
+    else ch.body=ch.body||"";
+  }
+  return data;
 }
 function projectsCol(){ return fbDb.collection("users").doc(fbUser.uid).collection("projects"); }
 function chaptersCol(pid){ return projectsCol().doc(pid).collection("chapters"); }
@@ -1782,33 +1958,40 @@ async function pullFromCloud(){
   // 初回ログイン: この端末にしか無い作品はクラウドへ退避（本体＋各章）
   for(const p of [...state.projects]){
     if(!remote[p.id]){
-      const doc = serializeProject(p.id); if(!doc) continue;
+      const doc = await cloudDoc(p.id); if(!doc) continue;   // 鍵なし暗号化作品は退避しない
       await projectsCol().doc(p.id).set(doc);
       for(const ch of (state.data[p.id]?.manuscript?.chapters||[])){
-        await chaptersCol(p.id).doc(ch.id).set({ title:ch.title||"", body:ch.body||"" });
+        const cp=await cloudChapter(p.id, ch); if(cp) await chaptersCol(p.id).doc(ch.id).set(cp);
       }
       remote[p.id] = doc;
     }
   }
-  // クラウドの内容で state を作り直す
+  // クラウドの内容で state を作り直す（暗号化作品は鍵があれば復号、無ければロック）
   const ids = Object.keys(remote);
-  state.projects = ids.map(id=>({ id, title:remote[id].title||"(無題)", createdAt:remote[id].createdAt||0 }))
+  state.projects = ids.map(id=>({ id, title:remote[id].title||"(無題)", createdAt:remote[id].createdAt||0, encrypted:!!remote[id].encrypted }))
                       .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-  state.data = {};
-  ids.forEach(id=> state.data[id] = remote[id].data || emptyProjectData());
-  // 各作品の章本文を chapters サブコレクションから読み込む
+  state.data = {}; _locked = {};
   for(const id of ids){
-    const data = state.data[id];
-    if(!data.manuscript) data.manuscript = {chapters:[]};
-    try{
-      const chSnap = await chaptersCol(id).get();
-      const bodies = {}; chSnap.forEach(c=> bodies[c.id]=c.data());
-      (data.manuscript.chapters||[]).forEach(ch=>{
-        const b=bodies[ch.id]; if(b){ ch.body=b.body||""; if(b.title) ch.title=b.title; } else { ch.body=ch.body||""; }
-      });
-    }catch(e){ console.warn("[Fabula] 章取得失敗 "+id+":", e); }
+    const rd = remote[id];
+    if(rd.encrypted){
+      // 章の暗号文も集めてから、鍵があれば一括復号。無ければロックへ退避
+      const chEnc={}; const chPlain={};
+      try{ const chSnap=await chaptersCol(id).get(); chSnap.forEach(c=>{ const cd=c.data(); if(cd.encrypted&&cd.enc) chEnc[c.id]=cd.enc; else chPlain[c.id]=cd; }); }catch(e){ console.warn("[Fabula] 章取得失敗 "+id+":", e); }
+      _locked[id] = { cloud:true, enc:rd.enc, chEnc };
+      const key = await getKey(id);
+      if(key){ try{ state.data[id]=await decryptLocked(id, key); delete _locked[id]; }catch(e){ console.warn("[Fabula] 復号失敗 "+id); } }
+    } else {
+      const data = rd.data || emptyProjectData();
+      if(!data.manuscript) data.manuscript = {chapters:[]};
+      try{
+        const chSnap = await chaptersCol(id).get();
+        const bodies = {}; chSnap.forEach(c=> bodies[c.id]=c.data());
+        (data.manuscript.chapters||[]).forEach(ch=>{ const b=bodies[ch.id]; if(b){ ch.body=b.body||""; if(b.title) ch.title=b.title; } else { ch.body=ch.body||""; } });
+      }catch(e){ console.warn("[Fabula] 章取得失敗 "+id+":", e); }
+      state.data[id] = data;
+    }
   }
-  if(!state.currentId || !state.data[state.currentId]) state.currentId = state.projects[0]?.id || null;
+  if(!state.currentId || (!state.data[state.currentId] && !_locked[state.currentId])) state.currentId = state.projects[0]?.id || null;
   saveLocal();
 }
 
@@ -1824,8 +2007,8 @@ async function flushSync(){
   if(!fbUser||!fbDb) return;
   const ids=[..._syncSet]; _syncSet.clear();
   for(const id of ids){
-    if(!state.data[id]) continue;             // 既に削除された作品は送らない
-    const doc = serializeProject(id); if(!doc) continue;
+    if(!state.data[id]) continue;             // 既に削除/ロック中の作品は送らない
+    const doc = await cloudDoc(id); if(!doc) continue;   // 暗号化＆鍵なしは送らない（平文漏れ防止）
     try{ await projectsCol().doc(id).set(doc); }
     catch(e){ console.warn("[Fabula] 同期失敗 "+id+":", e); }
   }
@@ -1856,7 +2039,8 @@ async function flushChapterSync(){
     const [pid,chId]=k.split("::");
     const data=state.data[pid]; if(!data) continue;
     const ch=(data.manuscript?.chapters||[]).find(c=>c.id===chId); if(!ch) continue;
-    try{ await chaptersCol(pid).doc(chId).set({ title:ch.title||"", body:ch.body||"" }); }
+    const payload=await cloudChapter(pid, ch); if(!payload) continue;
+    try{ await chaptersCol(pid).doc(chId).set(payload); }
     catch(e){ console.warn("[Fabula] 章同期失敗 "+k+":", e); }
   }
   updateAuthChip();
@@ -1871,7 +2055,7 @@ function updateAuthChip(status){
   if(fbUser){
     // ログイン時のみ表示（名前＋同期状態）。ログインは☰メニューから
     chip.style.display="inline-flex";
-    const name=fbUser.displayName||fbUser.email||"ユーザー";
+    const name=acctName();
     const short=name.length>10?name.slice(0,10)+"…":name;
     chip.innerHTML=`<span class="sync-dot ${status==="saving"?"saving":""}"></span>${esc(short)}`;
     chip.title=(status==="saving"?"同期中… ":"☁ 同期済み ")+name;
@@ -1901,6 +2085,7 @@ document.getElementById("tabs").addEventListener("click",e=>{
 });
 if(!state.currentId && state.projects[0]) state.currentId=state.projects[0].id;
 renderAll();
+unlockAvailable();   // 鍵を持つ暗号化作品を起動時に復号
 initFirebase();
 </script>
 </body>

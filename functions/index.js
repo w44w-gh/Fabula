@@ -83,21 +83,25 @@ exports.redeemCode = onCall({ region: REGION }, async (req) => {
 
   const db = admin.firestore();
   const ref = db.collection("codes").doc(code);
-  const uid = await db.runTransaction(async (tx) => {
+  // ※ トランザクション内で HttpsError を throw すると internal に化けるため、
+  //   理由は reason に積んで正常 return し、トランザクション外で throw する。
+  let uid = null, reason = null;
+  await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists) throw new HttpsError("permission-denied", "無効なコードです");
+    if (!snap.exists) { reason = ["permission-denied", "無効なコードです"]; return; }
     const d = snap.data();
-    if (d.revoked) throw new HttpsError("permission-denied", "このコードは無効化されています");
-    if (d.expiresAt && d.expiresAt.toMillis && d.expiresAt.toMillis() < Date.now())
-      throw new HttpsError("permission-denied", "このコードは期限切れです");
-
+    if (d.revoked) { reason = ["permission-denied", "このコードは無効化されています"]; return; }
+    if (d.expiresAt && d.expiresAt.toMillis && d.expiresAt.toMillis() < Date.now()) {
+      reason = ["permission-denied", "このコードは期限切れです"]; return;
+    }
     let assignedUid = d.uid;
     if (!d.claimed || !assignedUid) {
       assignedUid = "code_" + crypto.randomUUID().replace(/-/g, ""); // コードと分離した安定uid
       tx.update(ref, { claimed: true, uid: assignedUid, claimedAt: admin.firestore.FieldValue.serverTimestamp() });
     }
-    return assignedUid;
+    uid = assignedUid;
   });
+  if (reason) throw new HttpsError(reason[0], reason[1]);
 
   const customToken = await admin.auth().createCustomToken(uid, { supporter: true, via: "code" });
   return { token: customToken };
