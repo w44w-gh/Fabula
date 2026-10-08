@@ -35,6 +35,7 @@ const REGION = "asia-northeast1";
 exports.discordAuth = onCall(
   { region: REGION, secrets: [DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN] },
   async (req) => {
+   try {
     const code = req.data && req.data.code;
     const redirectUri = req.data && req.data.redirectUri;
     if (!code || !redirectUri) throw new HttpsError("invalid-argument", "code と redirectUri が必要です");
@@ -85,6 +86,12 @@ exports.discordAuth = onCall(
     const uid = `discord_${discordId}`;
     const customToken = await getAuth().createCustomToken(uid, { supporter: true, via: "discord" });
     return { token: customToken, name: me.global_name || me.username || "" };
+   } catch (e) {
+     if (e instanceof HttpsError) throw e;
+     console.error("[discordAuth] unexpected error:", (e && e.stack) || e);
+     // 原因を画面に出すために素のエラーメッセージを載せる（デバッグ用・一時的）
+     throw new HttpsError("internal", "discordAuth失敗: " + ((e && e.message) ? e.message : String(e)));
+   }
   }
 );
 
