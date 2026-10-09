@@ -1,8 +1,9 @@
 /**
  * Fabula backend（P1: 認証）
- *  - discordAuth : Discord OAuth の code → ロール確認 → Firebaseカスタムトークン発行
- *  - redeemCode  : 1回限りの個人コード照合 → Firebaseカスタムトークン発行
- * どちらも supporter クレーム付きトークンを返す（クライアントは signInWithCustomToken）。
+ *  - discordAuth : Discord OAuth の code → 支援者ロール確認 → Firebaseカスタムトークン発行
+ * supporter クレーム付きトークンを返す（クライアントは signInWithCustomToken）。
+ * ※ アクセスコード(redeemCode)は廃止。Discordサーバーに直接ユーザー追加＋ロール付与で誰でも許可できるため不要。
+ *   firestore依存も無し（redeemCodeが唯一の利用者だった）。
  *
  * 必要な設定（デプロイ前に takano が用意）:
  *   環境変数(functions/.env)… DISCORD_CLIENT_ID / DISCORD_GUILD_ID / DISCORD_SUPPORTER_ROLE_ID
@@ -15,10 +16,6 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
-// ※ firestore は discordAuth(ログイン)では使わない。モジュール先頭でrequireすると
-//   firestoreの読み込み失敗でdiscordAuthのコンテナまで起動失敗する巻き添えになるため、
-//   redeemCodeの中だけで遅延requireする（ログインをfirestore問題から切り離す）。
-const crypto = require("crypto");
 
 initializeApp();
 
@@ -94,36 +91,3 @@ exports.discordAuth = onCall(
    }
   }
 );
-
-// ---- 1回限りコード: 照合 → カスタムトークン ----
-// Firestore の codes/{code} を照合。初回で claimed=true＋安定uidを付与。以後は同じコードで同アカウントに再ログイン可。
-exports.redeemCode = onCall({ region: REGION }, async (req) => {
-  const code = ((req.data && req.data.code) || "").trim();
-  if (!code) throw new HttpsError("invalid-argument", "コードを入力してください");
-
-  const { getFirestore, FieldValue } = require("firebase-admin/firestore");   // 遅延require（ここでだけ使う）
-  const db = getFirestore();
-  const ref = db.collection("codes").doc(code);
-  // ※ トランザクション内で HttpsError を throw すると internal に化けるため、
-  //   理由は reason に積んで正常 return し、トランザクション外で throw する。
-  let uid = null, reason = null;
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists) { reason = ["permission-denied", "無効なコードです"]; return; }
-    const d = snap.data();
-    if (d.revoked) { reason = ["permission-denied", "このコードは無効化されています"]; return; }
-    if (d.expiresAt && d.expiresAt.toMillis && d.expiresAt.toMillis() < Date.now()) {
-      reason = ["permission-denied", "このコードは期限切れです"]; return;
-    }
-    let assignedUid = d.uid;
-    if (!d.claimed || !assignedUid) {
-      assignedUid = "code_" + crypto.randomUUID().replace(/-/g, ""); // コードと分離した安定uid
-      tx.update(ref, { claimed: true, uid: assignedUid, claimedAt: FieldValue.serverTimestamp() });
-    }
-    uid = assignedUid;
-  });
-  if (reason) throw new HttpsError(reason[0], reason[1]);
-
-  const customToken = await getAuth().createCustomToken(uid, { supporter: true, via: "code" });
-  return { token: customToken };
-});

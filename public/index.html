@@ -1721,7 +1721,6 @@ const GUEST_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="curren
 function openMenu(){
   const p=curProject();
   let avatar, name, sub, action="";
-  let extra="";
   if(fbUser){
     const dn=acctName();
     avatar=`<div class="menu-avatar">${esc((dn.trim()[0]||'U').toUpperCase())}</div>`;
@@ -1731,7 +1730,6 @@ function openMenu(){
     avatar=`<div class="menu-avatar guest">${GUEST_ICON}</div>`;
     name="ゲスト"; sub="この端末に保存（体験版）";
     action=`<button class="btn primary" id="mLogin">Discordでログイン</button>`;
-    extra=`<button class="menu-item" id="mCode">コードで有効化</button>`;
   }else{
     avatar=`<div class="menu-avatar guest">${GUEST_ICON}</div>`;
     name="ローカルモード"; sub="この端末に保存";
@@ -1741,7 +1739,6 @@ function openMenu(){
     <div class="menu-acct">${avatar}
       <div class="menu-acct-txt"><div class="menu-acct-name">${name}</div><div class="menu-acct-sub">${sub}</div></div>
       ${action}</div>
-    ${extra}
     <div class="menu-sep"></div>
     <button class="menu-item" id="mNewProj">＋ 作品を追加</button>
     <button class="menu-item" id="mImport">作品をインポート</button>
@@ -1753,7 +1750,6 @@ function openMenu(){
       <button class="menu-del" id="mDelProj">この作品を削除</button>`:""}`,
     (root)=>{
       const lb=root.querySelector("#mLogin"); if(lb) lb.onclick=()=>{ closeModal(); loginDiscord(); };
-      const cb=root.querySelector("#mCode"); if(cb) cb.onclick=()=>{ closeModal(); openCodeModal(); };
       const lo=root.querySelector("#mLogout"); if(lo) lo.onclick=()=>{ closeModal(); logout(); };
       root.querySelector("#mNewProj").onclick=()=>{ closeModal(); openProjectModal(); };
       root.querySelector("#mImport").onclick=()=>{ closeModal(); importProject(); };
@@ -1883,25 +1879,8 @@ async function handleDiscordRedirect(){
 function showLoginFail(msg){
   openModal(`<h3>ログインできませんでした</h3>
     <p style="font-size:14px;line-height:1.75;margin:2px 0 12px">${esc(msg)}<br>
-      <span class="muted">アクセスコードをお持ちの場合は、コードで有効化できます。</span></p>
-    <div class="modal-actions"><button class="btn" data-close>閉じる</button>
-      <button class="btn primary" id="toCode">コードで有効化</button></div>`,
-    (root)=>{ root.querySelector("#toCode").onclick=()=>{ closeModal(); openCodeModal(); }; });
-}
-// 1回限りコードでの有効化（Discordなしの支援者向け）
-function openCodeModal(){
-  openModal(`<h3>コードで有効化</h3>
-    <div class="field"><label>アクセスコード</label><input id="acCode" autofocus></div>
-    <div class="modal-actions"><button class="btn" data-close>キャンセル</button><button class="btn primary" id="acGo">有効化</button></div>`,
-    (root)=>{
-      const go=async ()=>{ const c=root.querySelector("#acCode").value.trim(); if(!c){ alert("コードを入力してください"); return; }
-        if(!fbFunctions){ alert("ログインにはオンライン接続が必要です"); return; }
-        const btn=root.querySelector("#acGo"); btn.disabled=true;
-        try{ const res=await fbFunctions.httpsCallable("redeemCode")({ code:c }); await fbAuth.signInWithCustomToken(res.data.token); closeModal(); }
-        catch(e){ btn.disabled=false; alert("コードの確認に失敗しました: "+(e.message||e.code||e)); } };
-      root.querySelector("#acGo").onclick=go;
-      root.querySelector("#acCode").addEventListener("keydown",e=>{ if(e.key==="Enter") go(); });
-    });
+      <span class="muted">支援者ロールが必要です。Discordサーバーでロールを受け取ってから、もう一度お試しください。</span></p>
+    <div class="modal-actions"><button class="btn primary" data-close>閉じる</button></div>`);
 }
 function logout(){ if(fbAuth) fbAuth.signOut(); fbSupporter=false; fbName=""; try{ localStorage.removeItem("fabula:name"); }catch(e){} }
 
