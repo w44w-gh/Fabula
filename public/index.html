@@ -185,6 +185,12 @@
   .field label{display:block;font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:5px}
   .field-row{display:flex;gap:7px;margin-bottom:7px;align-items:center}
   .field-row input:first-child{flex:0 0 34%}
+  .field-row .fk{flex:0 0 34%}
+  .fld-grip{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:22px;height:30px;border-radius:4px;
+    color:var(--text-2);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+  .fld-grip:hover{background:var(--surface-2);color:var(--text)}
+  .field-row.dragging{position:relative;z-index:3;background:var(--surface);border-radius:5px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  .field-row.dragging .fld-grip{cursor:grabbing;color:var(--text)}
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
   /* ---- ☰ menu (account) ---- */
   .menu-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}
@@ -752,7 +758,7 @@ function editCharacter(id){
       `<label><input type="radio" name="col" value="${col}" ${col===c.color?"checked":""}><span style="background:${col}"></span></label>`).join("")}</div></div>
     <div class="field"><label>画像</label><input type="file" accept="image/*" id="cImg">
       <div id="imgPrev" style="margin-top:8px">${c.image?`<img src="${c.image}" style="width:72px;height:72px;border-radius:5px;object-fit:cover">`:""}</div></div>
-    <div class="field"><label>項目（自由に追加できます）</label><div id="cFields">${fieldsHtml}</div>
+    <div class="field"><label>項目</label><div id="cFields">${fieldsHtml}</div>
       <button class="mini" id="addField" style="margin-top:4px">＋ 項目追加</button></div>
     <div class="modal-actions">
       ${id?`<button class="btn danger" id="delChar">削除</button>`:""}
@@ -768,9 +774,9 @@ function editCharacter(id){
       };
       root.querySelector("#addField").onclick=()=>{
         const d=document.createElement("div"); d.innerHTML=fieldRow({k:"",v:""});
-        root.querySelector("#cFields").appendChild(d.firstElementChild); bindFieldRemovers(root);
+        root.querySelector("#cFields").appendChild(d.firstElementChild); bindFieldRemovers(root); bindFieldDrag(root);
       };
-      bindFieldRemovers(root);
+      bindFieldRemovers(root); bindFieldDrag(root);
       root.querySelector("#saveChar").onclick=()=>{
         const name=root.querySelector("#cName").value.trim();
         const color=(root.querySelector('input[name="col"]:checked')||{}).value||c.color;
@@ -791,8 +797,49 @@ function editCharacter(id){
       };
     });
 }
-function fieldRow(f){ return `<div class="field-row"><input class="fk" placeholder="項目名" value="${esc(f.k)}"><input class="fv" placeholder="内容" value="${esc(f.v)}"><button class="mini rm" title="削除">×</button></div>`; }
+const GRIP_SVG = `<svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.2"/><circle cx="7" cy="3" r="1.2"/><circle cx="3" cy="8" r="1.2"/><circle cx="7" cy="8" r="1.2"/><circle cx="3" cy="13" r="1.2"/><circle cx="7" cy="13" r="1.2"/></svg>`;
+function fieldRow(f){ return `<div class="field-row"><span class="fld-grip" title="ドラッグで並べ替え">${GRIP_SVG}</span><input class="fk" placeholder="項目名" value="${esc(f.k)}"><input class="fv" placeholder="内容" value="${esc(f.v)}"><button class="mini rm" title="削除">×</button></div>`; }
 function bindFieldRemovers(root){ root.querySelectorAll("#cFields .rm").forEach(b=>b.onclick=()=>{ b.closest(".field-row").remove(); }); }
+// 項目の並べ替え：グリップをポインタで掴んで上下にドラッグ（保存は #cFields のDOM順を読むのでDOMを入れ替えるだけでよい）
+function bindFieldDrag(root){
+  const host=root.querySelector("#cFields"); if(!host) return;
+  host.querySelectorAll(".fld-grip").forEach(g=>{
+    if(g._dragWired) return; g._dragWired=true;
+    g.addEventListener("pointerdown", e=>{
+      if(e.pointerType==="mouse" && e.button!==0) return;
+      const row=g.closest(".field-row"); if(!row) return;
+      e.preventDefault();
+      let startY=e.clientY, rect=row.getBoundingClientRect();
+      row.classList.add("dragging");
+      try{ g.setPointerCapture(e.pointerId); }catch(_){}
+      // 入れ替えで自分のレイアウト位置が1行分ずれるので、ずれた分だけ基準をずらす
+      // （基準を現在のポインタ位置にリセットすると、しきい値超過分が毎回捨てられて1段ずつ取りこぼす）
+      const rebase=(y)=>{
+        const prevTop=rect.top;
+        row.style.transform=""; rect=row.getBoundingClientRect();
+        startY += rect.top-prevTop;
+        row.style.transform="translateY("+(y-startY)+"px)";
+      };
+      const sib=(el)=>(el && el.classList && el.classList.contains("field-row")) ? el : null;
+      const move=ev=>{
+        row.style.transform="translateY("+(ev.clientY-startY)+"px)";
+        // 1イベントで大きく動いた時（速いドラッグ）も追いつくよう、必要な回数だけ入れ替える
+        for(;;){
+          const mid=rect.top+rect.height/2+(ev.clientY-startY);
+          const prev=sib(row.previousElementSibling), next=sib(row.nextElementSibling);
+          if(prev){ const r=prev.getBoundingClientRect(); if(mid < r.top+r.height/2){ host.insertBefore(row, prev); rebase(ev.clientY); continue; } }
+          if(next){ const r=next.getBoundingClientRect(); if(mid > r.top+r.height/2){ host.insertBefore(next, row); rebase(ev.clientY); continue; } }
+          break;
+        }
+      };
+      const up=()=>{
+        g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.removeEventListener("pointercancel", up);
+        row.classList.remove("dragging"); row.style.transform="";
+      };
+      g.addEventListener("pointermove", move); g.addEventListener("pointerup", up); g.addEventListener("pointercancel", up);
+    });
+  });
+}
 
 // ---- プロット ----
 const KISHO=[{k:"ki",label:"起",color:"#30a46c"},{k:"sho",label:"承",color:"#0091ff"},{k:"ten",label:"転",color:"#f5a524"},{k:"ketsu",label:"結",color:"#e5484d"}];
