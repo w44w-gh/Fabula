@@ -85,9 +85,9 @@ exports.discordAuth = onCall(
     return { token: customToken, name: me.global_name || me.username || "" };
    } catch (e) {
      if (e instanceof HttpsError) throw e;
+     // 詳細はログにだけ残す（画面には出さない）。確認は `firebase functions:log`
      console.error("[discordAuth] unexpected error:", (e && e.stack) || e);
-     // 原因を画面に出すために素のエラーメッセージを載せる（デバッグ用・一時的）
-     throw new HttpsError("internal", "discordAuth失敗: " + ((e && e.message) ? e.message : String(e)));
+     throw new HttpsError("internal", "ログイン処理に失敗しました。時間をおいて再度お試しください");
    }
   }
 );

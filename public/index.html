@@ -46,17 +46,26 @@
   .logo .mark{width:22px;height:22px;border-radius:3px;background:var(--primary);
     display:inline-block}
   .spacer{flex:1}
-  .proj-select{max-width:230px}
+  .sel-wrap{position:relative;display:inline-flex;align-items:center;max-width:230px;min-width:0}
+  .proj-select{width:100%;max-width:230px;padding-right:30px;text-overflow:ellipsis;
+    appearance:none;-webkit-appearance:none}
+  .sel-wrap::after{content:"";position:absolute;right:12px;top:0;bottom:0;margin:auto;
+    width:7px;height:7px;border-right:1.6px solid var(--text-2);border-bottom:1.6px solid var(--text-2);
+    transform:translateY(-2px) rotate(45deg);pointer-events:none}
   .enc-badge{display:inline-flex;align-items:center;color:var(--primary)}
   .btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:4px;
     padding:8px 12px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .btn:hover{background:var(--surface-2)}
+  .btn:disabled{opacity:.45;cursor:default;pointer-events:none}
   .btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
   .btn.primary:hover{filter:brightness(1.05)}
   .btn.icon{padding:8px;width:36px;justify-content:center}
   .btn.subtle{border-color:transparent;background:transparent;color:var(--text-2)}
   .btn.subtle:hover{background:var(--surface-2);color:var(--text)}
   .btn.danger{color:var(--danger);border-color:var(--danger)}
+  .btn.locked{color:var(--text-2);opacity:.6;cursor:default}
+  .btn.locked:hover{background:var(--surface)}
+  .btn .lock-badge{margin-left:0}
 
   /* ---- nav ---- */
   nav.tabs{display:flex;gap:4px;padding:8px 14px 0;background:var(--surface);border-bottom:1px solid var(--border);
@@ -74,14 +83,30 @@
 
   /* ---- cards grid (characters) ---- */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;align-items:start}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
-    overflow:hidden;cursor:pointer;transition:transform .08s}
-  .card:hover{transform:translateY(-2px)}
+  .card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
+    overflow:hidden}
+  .card .row{display:flex;justify-content:flex-end;padding:0 11px 11px}
+  /* 並べ替えグリップ（共通）。置き場所は全部「右上」で統一する。本体のクリック＝編集とは別扱い */
+  .drag-grip{position:absolute;top:3px;right:3px;z-index:2;
+    display:flex;align-items:center;justify-content:center;
+    width:22px;height:22px;border-radius:4px;color:var(--text-2);opacity:.45;cursor:grab;
+    touch-action:none;user-select:none;-webkit-user-select:none}
+  .drag-grip:hover{opacity:1;background:var(--surface-2);color:var(--text)}
+  /* グリップの基準になる親と、右上に空けるゆとり */
+  .plot-ch-block,.plot-card,.tl-card,.ms-chap,.sc-cmd,.memo-card,.world-item,.rel-row{position:relative}
+  .plot-ch-head{padding-right:26px}
+  .plot-card .t,.tl-card .t,.world-item .t{padding-right:20px}
+  .memo-top{padding-right:24px}
+  /* ドラッグ中。影は drop-shadow（背景が透明な入れ物でも中身の形に沿う） */
+  .drag-active{position:relative;z-index:5;transition:none;pointer-events:none;
+    filter:drop-shadow(0 8px 18px rgba(0,0,0,.38))}
+  .card.drag-active{border-color:var(--primary)}
+  .drag-active .drag-grip{opacity:1;color:var(--text);cursor:grabbing}
   .char-top{display:flex;gap:12px;padding:13px;align-items:flex-start}
   .char-body{min-width:0;flex:1}
   .avatar{width:52px;height:52px;border-radius:5px;flex-shrink:0;object-fit:cover;background:var(--surface-2);
     display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:20px}
-  .char-name{font-weight:700;font-size:15px;word-break:break-word}
+  .char-name{font-weight:700;font-size:15px;word-break:break-word;padding-right:20px}
   .char-fields{margin-top:6px;display:flex;flex-direction:column;gap:3px}
   .cf-row{display:flex;gap:8px;font-size:12.5px;line-height:1.5}
   .cf-k{color:var(--text-2);flex:0 0 auto;min-width:52px;max-width:88px;word-break:break-word}
@@ -99,6 +124,10 @@
     display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:17px}
   .cd-detail{position:fixed;width:min(280px,72vw);max-height:70vh;overflow:auto;pointer-events:auto;
     background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.3);padding:13px}
+  /* バブル詳細の中の「掴んで本文へ放り込める文字」 */
+  .drag-text{cursor:grab;border-radius:3px}
+  .drag-text:hover{background:var(--surface-2);box-shadow:0 0 0 3px var(--surface-2)}
+  .drag-text:active{cursor:grabbing}
   .cd-detail-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
   .cd-detail-head .char-name{flex:1;min-width:0}
   .cd-detail-head .cd-ava{width:40px;height:40px;font-size:16px;cursor:default}
@@ -144,7 +173,7 @@
   .rel-node:active{cursor:grabbing}
   .rel-list{margin-top:14px;display:flex;flex-direction:column;gap:7px}
   .rel-row{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
-    border-radius:5px;padding:9px 11px;font-size:13.5px}
+    border-radius:5px;padding:9px 30px 9px 11px;font-size:13.5px}   /* 右はグリップのぶん空ける */
   .rel-row .lbl{flex:1;color:var(--text-2)}
   .rel-row .rel-call{color:var(--primary);font-size:12.5px;white-space:nowrap}
 
@@ -186,12 +215,25 @@
   .field-row{display:flex;gap:7px;margin-bottom:7px;align-items:center}
   .field-row input:first-child{flex:0 0 34%}
   .field-row .fk{flex:0 0 34%}
-  .fld-grip{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:22px;height:30px;border-radius:4px;
-    color:var(--text-2);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
-  .fld-grip:hover{background:var(--surface-2);color:var(--text)}
-  .field-row.dragging{position:relative;z-index:3;background:var(--surface);border-radius:5px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
-  .field-row.dragging .fld-grip{cursor:grabbing;color:var(--text)}
+  .fld-grip{position:static;flex:0 0 auto;height:30px}   /* 右上ではなく行の左に並べる。他は .drag-grip のまま */
+  .modal-msg{font-size:14px;line-height:1.75;margin:2px 0 2px}
+  .modal-msg.gap{margin-bottom:12px}            /* 下にボタン以外が続く時 */
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+  /* 編集モーダルの上に重ねる確認ダイアログ（下の暗さを足しすぎないよう薄め） */
+  .overlay-2{z-index:76;background:rgba(10,14,25,.3)}
+  /* 上書き保存の合図：ティールのリングが一瞬出て消える（レイアウトに影響しない outline を使う） */
+  @keyframes savedRing{ 0%{outline-color:var(--primary)} 55%{outline-color:var(--primary)} 100%{outline-color:transparent} }
+  .saved-flash{outline:2px solid transparent;outline-offset:0;animation:savedRing .55s ease-out}
+  /* ---- toast（短い通知。モーダルより上に出る） ---- */
+  #toastHost{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:90;
+    display:flex;flex-direction:column;gap:8px;align-items:center;
+    width:min(520px,calc(100vw - 32px));pointer-events:none}
+  .toast{pointer-events:auto;cursor:pointer;max-width:100%;
+    background:var(--surface);color:var(--text);border:1px solid var(--border);
+    border-left:3px solid var(--primary);border-radius:var(--radius);
+    box-shadow:0 6px 20px rgba(10,14,25,.18);
+    padding:11px 14px;font-size:13.5px;line-height:1.65;word-break:break-word}
+  .toast.err{border-left-color:var(--danger)}
   /* ---- ☰ menu (account) ---- */
   .menu-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}
   .menu-title{font-size:12px;font-weight:700;color:var(--text-2)}
@@ -212,7 +254,20 @@
   .menu-item.danger:hover{background:rgba(229,72,77,.12)}
   .menu-del{border:none;background:none;color:var(--text-2);font-size:12px;padding:5px 2px;cursor:pointer;text-align:left}
   .menu-del:hover{color:var(--danger)}
+  .menu-del.danger{color:var(--danger)}                       /* 作品の削除だけ最初から赤 */
+  .menu-del.danger:hover{text-decoration:underline}
   .menu-label{font-size:11px;color:var(--text-2);font-weight:700;letter-spacing:.05em;padding:2px 2px 6px}
+  .menu-item.locked{color:var(--text-2);opacity:.6;cursor:default}
+  .menu-item.locked:hover{background:none}
+  .lock-badge{margin-left:auto;flex:0 0 auto;font-size:10px;font-weight:700;color:var(--text-2);
+    border:1px solid var(--border);border-radius:3px;padding:1px 5px;letter-spacing:.03em}
+  .opt-locked{opacity:.6}
+  .opt-locked input{cursor:default}
+  .share-mems{max-height:168px;overflow:auto;margin-bottom:8px}
+  .share-mem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 2px;font-size:13.5px;border-bottom:1px solid var(--border)}
+  .edit-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--primary);margin-right:6px;vertical-align:middle}
+  .present-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--text-2);margin:2px 0 8px}
+  .present-chip{display:inline-flex;align-items:center;gap:5px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:2px 9px}
   .menu-tog{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 2px;font-size:13.5px;cursor:pointer}
   .sw{position:relative;display:inline-block;width:38px;height:22px;flex:0 0 auto}
   .sw input{position:absolute;opacity:0;width:0;height:0;margin:0}
@@ -225,13 +280,11 @@
   .ms-side{flex:0 0 212px;display:flex;flex-direction:column;gap:8px}
   .ms-chaps{display:flex;flex-direction:column;gap:5px}
   .ms-chap{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:5px;
-    background:var(--surface);padding:8px 9px;cursor:pointer}
+    background:var(--surface);padding:8px 28px 8px 9px;cursor:pointer}   /* 右はグリップのぶん空ける */
   .ms-chap.active{border-color:var(--primary);background:var(--primary-weak)}
   .ms-chap-main{flex:1;min-width:0}
   .ms-chap-title{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ms-chap-count{font-size:11px;color:var(--text-2);margin-top:1px}
-  .ms-chap-ord{display:flex;flex-direction:column;gap:2px}
-  .ms-chap-ord .mini{padding:0 5px;font-size:9px;line-height:1.5}
   .ms-editor{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
   .ms-title{font-size:16px;font-weight:700}
   .ms-body{min-height:58vh;line-height:1.9;font-size:15px}
@@ -265,7 +318,7 @@
   .sc-head{display:flex;gap:10px;align-items:center;margin-bottom:10px}
   .sc-head .ms-title{flex:1}
   .sc-cmds{display:flex;flex-direction:column;gap:6px;margin:4px 0 12px}
-  .sc-cmd{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);padding:8px 10px}
+  .sc-cmd{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);padding:8px 30px 8px 10px}
   .sc-cmd-body{flex:1;min-width:0;font-size:13.5px;line-height:1.55;word-break:break-word}
   .sc-cmd-ord{display:flex;align-items:center;gap:3px;flex:0 0 auto}
   .sc-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;color:#fff;vertical-align:middle}
@@ -304,6 +357,10 @@
     .book-pages{ display:block !important; overflow:visible !important; padding:0 !important; }
     .book-page{ box-shadow:none !important; margin:0 !important; break-after:page; }
     .book-page:last-child{ break-after:auto; }
+    /* 体験版：製本プレビューを開いていても⌘Pで中身を出さない */
+    body[data-trial="1"] #bookOverlay{ display:none !important; }
+    body[data-trial="1"]::after{ content:"体験版ではPDF出力・印刷はできません。Discordでログインすると使えます。";
+      display:block; padding:24pt; font-size:11pt; color:#111; font-family:sans-serif; }
   }
   .ms-vert{writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;width:100%;height:60vh;overflow-x:auto;overflow-y:hidden;
     border:1px solid var(--border);border-radius:5px;padding:18px;background:var(--surface);
@@ -327,11 +384,21 @@
   .swatch input{display:none}
   .swatch input:checked + span{outline:2px solid var(--text);outline-offset:2px}
   .swatch span{display:block;width:26px;height:26px;border-radius:50%}
-  @media (max-width:520px){ .proj-select{max-width:140px} main{padding:14px 12px 80px} }
+  @media (max-width:520px){ .sel-wrap,.proj-select{max-width:140px} main{padding:14px 12px 80px} }
   /* ---- auth chip ---- */
-  #authChip{display:none;align-items:center;gap:6px;max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  /* 🔍 ☰ と同じ見た目・同じ高さに揃える（中身が8pxの点だけなので高さは明示する） */
+  #authChip{display:none;align-items:center;justify-content:center;padding:8px;width:36px;height:35px}
   .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--primary);flex:0 0 auto}
-  .sync-dot.saving{background:#f5a524}
+  .sync-dot.saving{background:#f5a524;animation:syncPulse 1.1s ease-in-out infinite}
+  .sync-dot.retrying{background:var(--danger)}
+  .sync-dot.offline{background:transparent;box-shadow:inset 0 0 0 2px var(--text-2)}
+  @keyframes syncPulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .sync-row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+    font-size:13px;padding:8px 0;border-bottom:1px solid var(--border)}
+  .sync-row:last-child{border-bottom:0}
+  .sync-row span{color:var(--text-2);flex:0 0 auto}
+  .sync-row b{font-weight:600;text-align:right;word-break:break-word}
+  .sync-row b.bad{color:var(--danger);font-weight:500;font-size:12.5px}
 </style>
 </head>
 <body>
@@ -339,7 +406,7 @@
   <div class="logo"><span class="mark"></span>Fabula</div>
   <div class="spacer"></div>
   <span class="enc-badge" id="encBadge" title="暗号化された作品" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M11.5 11.5 21 2"/><path d="M15.5 7.5l3 3"/></svg></span>
-  <select class="proj-select" id="projSelect" title="作品を選択"></select>
+  <span class="sel-wrap"><select class="proj-select" id="projSelect" title="作品を選択"></select></span>
   <button class="btn" id="authChip"></button>
   <button class="btn icon subtle" id="searchBtn" title="検索"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></button>
   <button class="btn icon" id="menuBtn" title="メニュー">☰</button>
@@ -356,6 +423,7 @@
   <button data-view="memo">メモ</button>
 </nav>
 
+<div id="presenceBar" class="present-bar" hidden></div>
 <main id="main"></main>
 
 <div id="overlayHost"></div>
@@ -431,7 +499,10 @@ async function doSaveLocal(){
 function save(){ saveLocal(); queueSync(state.currentId); }   // ローカル保存＋（ログイン時）クラウド同期
 const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
-function emptyProjectData(){ return { characters:[], plot:{structure:"kishoutenketsu",cards:[],chapters:[]}, world:[], relations:[], timeline:[], manuscript:{chapters:[]}, scenario:{scenes:[],vars:[]}, memos:[], tabVis:{} }; }
+function emptyProjectData(){ return { characters:[], plot:{structure:"kishoutenketsu",cards:[],chapters:[]}, world:[], relations:[], timeline:[], manuscript:{chapters:[]}, scenario:{scenes:[],vars:[]}, memos:[], tabVis:{}, charTemplate:null }; }
+// キャラの項目テンプレート（作品ごと）。null/未設定なら既定の6項目。空配列なら「項目なしで作る」
+function defaultCharFields(){ return [{k:"身長",v:""},{k:"体重",v:""},{k:"年齢",v:""},{k:"種族",v:""},{k:"一人称",v:""},{k:"性格",v:""}]; }
+function charTemplate(){ const d=cur(); return Array.isArray(d && d.charTemplate) ? d.charTemplate : defaultCharFields(); }
 function createProject(title, data){   // 作品レコードを作って選択状態にする（保存/再描画は呼び元）
   const id=uid(); state.projects.push({id, title, createdAt:Date.now()}); state.data[id]=data; state.currentId=id; return id;
 }
@@ -477,22 +548,25 @@ function renderProjectBar(){
   document.getElementById("tabs").hidden = !p;
   applyTabVis();   // タブの表示/非表示を反映
 }
-function switchProject(id){ state.currentId=id; _tagFilter=null; save(); renderAll(); animateMain(); }
+function switchProject(id){ state.currentId=id; _tagFilter=null; save(); renderAll(); animateMain(); startLiveSync(); }
 
 function openProjectModal(){
-  if(!guardAdd('projects', state.projects.length)) return;
+  if(!canAddProject()) return;   // 上限時はメニュー側がグレーアウト済み（案内ダイアログは出さない）
+  const encOk = isFull();   // 暗号化(E2E)は支援者限定
   openModal(`<h3>新しい作品</h3>
     <div class="field"><label>タイトル</label><input id="pTitle" placeholder="作品名" autofocus></div>
-    <label style="display:flex;gap:8px;align-items:flex-start;margin:2px 0 6px;font-size:13.5px;cursor:pointer">
-      <input type="checkbox" id="pEnc" style="margin-top:3px;width:auto;flex:0 0 auto"><span>この作品を暗号化する<br>
-      <span class="muted" style="font-size:11.5px">本人のみ復号。別端末で開くには復元キーが必要・鍵を失うと復元できません</span></span></label>
+    <label class="${encOk?"":"opt-locked"}" style="display:flex;gap:8px;align-items:flex-start;margin:2px 0 6px;font-size:13.5px;cursor:${encOk?"pointer":"default"}">
+      <input type="checkbox" id="pEnc" ${encOk?"":"disabled"} style="margin-top:3px;width:auto;flex:0 0 auto"><span>この作品を暗号化する${encOk?"":`<span class="lock-badge">支援者</span>`}<br>
+      <span class="muted" style="font-size:11.5px">${encOk
+        ? "本人のみ復号。別端末で開くには復元キーが必要・鍵を失うと復元できません"
+        : "暗号化は支援者向けの機能です"}</span></span></label>
     <div class="modal-actions">
       <button class="btn" data-close>キャンセル</button>
       <button class="btn primary" id="pCreate">作成</button>
     </div>`, (root)=>{
       const create=async ()=>{
-        const title=root.querySelector("#pTitle").value.trim(); if(!title){alert("タイトルを入力してください");return;}
-        const enc=root.querySelector("#pEnc").checked;
+        const title=root.querySelector("#pTitle").value.trim(); if(!title){toast("タイトルを入力してください","err");return;}
+        const enc=encOk && root.querySelector("#pEnc").checked;   // 体験版では常にfalse
         const id=createProject(title, emptyProjectData());
         if(enc){
           const key=await newCryptoKey(); const s=await exportKeyStr(key);
@@ -518,7 +592,7 @@ function showRecoveryKey(s){
 const _KEY_MASK="••••••••••••••••••••••••••••••••";
 function showStoredKey(p){
   const s=_keyStrs[p.id];
-  if(!s){ alert("この端末に復元キーがありません（別端末ならロック画面でキーを入力してください）"); return; }
+  if(!s){ noticeModal("復元キーがありません", 'この端末には復元キーが保存されていません。<br><span class="muted">別の端末で作成した作品なら、ロック画面で復元キーを入力してください。</span>'); return; }
   openModal(`<h3>復元キー：${esc(p.title)}</h3>
     <p class="muted" style="font-size:13px;line-height:1.7;margin:2px 0 8px">別の端末で開くときに必要です。周囲に見られない場所で表示・保管してください。</p>
     <div class="field"><textarea id="recKey" readonly style="font-family:monospace;font-size:12px;min-height:58px;width:100%">${_KEY_MASK}</textarea></div>
@@ -535,9 +609,110 @@ function showStoredKey(p){
 // ---- アニメーション（prefers-reduced-motion 尊重） ----
 function prefersReduced(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
 function flashIn(el){ if(!el||prefersReduced())return; el.animate([{opacity:0,transform:'translateY(-5px)'},{opacity:1,transform:'none'}],{duration:220,easing:'cubic-bezier(.2,.7,.3,1)'}); }
+// ---- 削除の演出：対象を細かい破片に分けて散らす ----
+// 同じ要素を複製し、clip-path でタイル状に切り出して1枚ずつ飛ばす＝ライブラリ不要・画像化も不要。
+// 左から順に崩れるようディレイをずらし、終わってから done()（＝実データの削除と再描画）を呼ぶ。
+const SHATTER={tile:34, maxCols:20, maxRows:10, dur:380, durJit:120, delay:190, delayJit:60, nodeBudget:4000};
+// 保存の演出は削除の逆再生。散らばった破片が左から順に収まって1枚のカードになる。
+const ASSEMBLE={dur:300, durJit:80, delay:150, delayJit:45};
+// 要素を clip-path のタイルに分割した「破片セット」を作る（削除＝散らす／保存＝集める で共用）
+function buildTiles(el, r){
+  // 破片の数は要素の大きさに合わせる（小さいカードは粗く、大きいカードは細かく）
+  let cols=Math.max(6, Math.min(SHATTER.maxCols, Math.round(r.width/SHATTER.tile)));
+  let rows=Math.max(3, Math.min(SHATTER.maxRows, Math.round(r.height/SHATTER.tile)));
+  // 破片は1枚ずつ要素まるごとの複製なので、中身が多い要素（章ブロック等）は枚数を落とす
+  const budget=Math.max(12, Math.round(SHATTER.nodeBudget/(1+el.getElementsByTagName("*").length)));
+  if(cols*rows>budget){ const k=Math.sqrt(budget/(cols*rows));
+    cols=Math.max(4, Math.round(cols*k)); rows=Math.max(2, Math.round(rows*k)); }
+  const host=document.createElement("div");
+  host.style.cssText=`position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none;z-index:80`;
+  const pieces=[];
+  for(let gy=0; gy<rows; gy++) for(let gx=0; gx<cols; gx++){
+    const piece=el.cloneNode(true);
+    piece.removeAttribute("id");
+    piece.style.cssText=`position:absolute;left:0;top:0;width:${r.width}px;height:${r.height}px;margin:0`;
+    const x0=gx*100/cols, x1=(gx+1)*100/cols, y0=gy*100/rows, y1=(gy+1)*100/rows;
+    piece.style.clipPath=`polygon(${x0}% ${y0}%, ${x1}% ${y0}%, ${x1}% ${y1}%, ${x0}% ${y1}%)`;
+    host.appendChild(piece);
+    pieces.push({ el:piece, t: cols>1 ? gx/(cols-1) : 0 });   // t=左端0〜右端1（時間差に使う）
+  }
+  return { host, pieces };
+}
+// 散らばった状態（保存の演出の開始位置 ＝ 削除の演出の終了位置）
+function scatterKey(t){
+  return { transform:`translate(${10+t*24+Math.random()*12}px, ${-4-Math.random()*22}px) rotate(${Math.random()*14-7}deg) scale(.92)`, opacity:0 };
+}
+const SETTLED={ transform:"translate(0,0) rotate(0deg) scale(1)", opacity:1 };
+function shatter(el, done){
+  const r=el.getBoundingClientRect();
+  if(!r.width || !r.height){ done(); return; }
+  const { host, pieces } = buildTiles(el, r);
+  pieces.forEach(p=>{
+    p.el.animate([SETTLED, scatterKey(p.t)],
+      { duration:SHATTER.dur+Math.random()*SHATTER.durJit, delay:p.t*SHATTER.delay+Math.random()*SHATTER.delayJit,
+        easing:"cubic-bezier(.25,.6,.35,1)", fill:"forwards" });
+  });
+  document.body.appendChild(host);
+  el.style.visibility="hidden";
+  setTimeout(()=>{ host.remove(); done(); }, SHATTER.dur+SHATTER.durJit+SHATTER.delay+SHATTER.delayJit+40);
+}
+// 上書き保存の合図：すでに画面にあるカードなので、作り直す演出(assemble)は意味が合わない。
+// ティールのリングが一瞬走って、わずかに沈み込むだけ＝「いま反映された」を示す。
+function flashUpdated(el){
+  if(!el || prefersReduced()) return;
+  el.classList.remove("saved-flash"); void el.offsetWidth;   // 連続保存でも再生し直せるように
+  el.classList.add("saved-flash");
+  const off=()=>{ el.classList.remove("saved-flash"); el.removeEventListener("animationend", off); };
+  el.addEventListener("animationend", off);
+  el.animate([{transform:"translateY(-2px)"},{transform:"none"}],
+    {duration:260, easing:"cubic-bezier(.2,.7,.3,1)"});
+}
+// 保存の演出：破片が左から順に収まってカードになる。削除より少し速い。
+let _asmCancel=null;
+function assemble(el){
+  if(prefersReduced() || !el) return;
+  if(_asmCancel) _asmCancel();   // 連続保存で前の演出が残らないように
+  const r=el.getBoundingClientRect();
+  if(!r.width || !r.height) return;
+  const { host, pieces } = buildTiles(el, r);
+  let last=0;
+  pieces.forEach(p=>{
+    const dur=ASSEMBLE.dur+Math.random()*ASSEMBLE.durJit;
+    const delay=p.t*ASSEMBLE.delay+Math.random()*ASSEMBLE.delayJit;
+    last=Math.max(last, dur+delay);
+    p.el.animate([scatterKey(p.t), SETTLED],
+      { duration:dur, delay, easing:"cubic-bezier(.2,.7,.3,1)", fill:"backwards" });
+  });
+  document.body.appendChild(host);
+  el.style.visibility="hidden";
+  const cancel=()=>{ if(_asmCancel===cancel) _asmCancel=null; clearTimeout(timer); host.remove(); el.style.visibility=""; };
+  _asmCancel=cancel;
+  const timer=setTimeout(cancel, last+40);
+}
+// 削除対象のカードを探して砕く。target は id（既定は #main の [data-id]）か要素そのもの。
+// 対象が見つからなければ即 done()（付け忘れても壊れない代わりに黙って無効になる）。
+function withShatter(id, done){
+  if(prefersReduced()){ done(); return; }
+  let el=null;
+  const v=(window.CSS&&CSS.escape) ? CSS.escape(String(id)) : String(id);
+  try{ el=document.querySelector(`#main [data-id="${v}"]`); }catch(e){}
+  if(!el){ done(); return; }
+  shatter(el, done);
+}
 function animateMain(){ if(prefersReduced())return; const m=document.getElementById("main"); if(m) m.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:180,easing:'ease-out'}); }
-let _flashId=null;
-function applyFlash(){ if(!_flashId)return; const id=_flashId; _flashId=null; const el=document.querySelector('[data-id="'+id+'"]'); flashIn(el); }
+let _flashId=null, _flashMode=null;
+// 保存直後のカードに演出を付ける。
+//   新規(isNew) … assemble（破片が集まって出来上がる＝削除の逆再生）
+//   上書き       … flashUpdated（リングが一瞬光るだけ。カードはもう在るので作り直さない）
+// assemble は要素を一瞬隠すので、追加直後に入力欄へフォーカスするもの
+// （メモ・章・シーン）は従来どおり flashIn のまま。
+function flashSaved(id, isNew){ _flashId=id; _flashMode = isNew ? "assemble" : "update"; }
+function applyFlash(){ if(!_flashId)return;
+  const id=_flashId, mode=_flashMode; _flashId=null; _flashMode=null;
+  const el=document.querySelector('[data-id="'+id+'"]');
+  if(mode==="assemble") assemble(el);
+  else if(mode==="update") flashUpdated(el);
+  else flashIn(el); }
 
 // ---- タグ（キャラ/世界観/プロット/メモ） ----
 let _tagFilter=null;
@@ -549,22 +724,40 @@ function wireTags(scope){ (scope||document).querySelectorAll(".tag").forEach(el=
   const b=document.getElementById("clearTagF"); if(b) b.onclick=()=>{ _tagFilter=null; renderView(); }; }
 
 // ---- 体験版の制限（上限値は下の LIMITS で調整可。isFull() は将来 Discord支援者判定に差し替え） ----
-const LIMITS = { projects:1, characters:5, world:10, plot:10, timeline:10, relations:10, chapters:2, scenes:3, memos:5 };
+// 体験版の数量制限は「作品1つまで」だけ。その1作品の中身（キャラ・章・メモ等）は制限しない。
+// ※個数を絞りたい項目ができたら LIMITS に足す（例 characters:5）。LIMITS に無い項目は無制限。
+const LIMITS = { projects:1 };
 const LIMIT_LABEL = { projects:'作品', characters:'キャラクター', world:'世界観の項目', plot:'プロットカード', timeline:'出来事', relations:'関係', chapters:'章', scenes:'シーン', memos:'メモ' };
-// supporterクレーム有り=確実にフル。未ログインは暫定で通常フル（'fabula:trial'='1'で体験版プレビュー）。※公開時は未支援者を体験版にするならここを fbSupporter 判定だけにする
-function isFull(){ if(fbSupporter) return true; try{ return localStorage.getItem('fabula:trial')!=='1'; }catch(e){ return true; } }
-function guardAdd(kind,count){ if(isFull()||count<LIMITS[kind]) return true; upsell(kind); return false; }
+// 支援者(Discordログイン)＝フル機能。未ログイン(ゲスト)＝体験版。
+// 開発中の確認用に localStorage の 'fabula:full'='1' でフル扱いにできるが、
+// **localhost で開いている時だけ**有効（公開サイトでは無視＝コンソールから1行で解除されないように）
+function isDevHost(){ const h=location.hostname;
+  return h==="localhost" || h==="127.0.0.1" || h==="::1" || h==="[::1]" || h.endsWith(".localhost"); }
+function isFull(){ if(fbSupporter) return true;
+  try{ return isDevHost() && localStorage.getItem('fabula:full')==='1'; }catch(e){ return false; } }
+function guardAdd(kind,count){ const lim=LIMITS[kind]; if(isFull()||lim==null||count<lim) return true; upsell(kind); return false; }
+// 作品を追加できるか（体験版は1作品まで）。上限に達していたらUIをグレーアウトする＝ダイアログは出さない
+function canAddProject(){ return isFull() || state.projects.length < LIMITS.projects; }
+// 体験版で使えない時の案内（上限／支援者限定機能で共用。その場からログインできるようにする）
+function upsellModal(title, msgHtml){
+  const canLogin = !!fbAuth;
+  openModal(`<div class="menu-head"><span class="menu-title">${esc(title)}</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <p class="modal-msg">${msgHtml}</p>
+    <div class="modal-actions">${canLogin
+      ? `<button class="btn" data-close>閉じる</button><button class="btn primary" id="upLogin">Discordでログイン</button>`
+      : `<button class="btn primary" data-close>閉じる</button>`}</div>`,
+    (root)=>{ const b=root.querySelector("#upLogin"); if(b) b.onclick=()=>{ closeModal(); loginDiscord(); }; });
+}
 function upsell(kind){ const n=LIMITS[kind], l=LIMIT_LABEL[kind]||kind;
-  openModal(`<div class="menu-head"><span class="menu-title">体験版の上限です</span><button class="menu-x" data-close title="閉じる">✕</button></div>
-    <p style="font-size:14px;line-height:1.75;margin:4px 0 2px">体験版では${esc(l)}は <b>${n}</b> までです。<br><b>Discord連携（支援者）</b>でフル機能＋クラウド保存が使えます。</p>
-    <div class="modal-actions"><button class="btn primary" data-close>閉じる</button></div>`); }
+  upsellModal("体験版の上限です", `体験版では${esc(l)}は <b>${n}</b> までです。<br><b>Discordでログイン</b>するとフル機能＋クラウド保存が使えます。`); }
 
-function renderAll(){ renderProjectBar(); renderView(); }
+
+function renderAll(){ renderProjectBar(); renderView(); updatePresenceBar(); }
 function renderView(){
   const main=document.getElementById("main");
   if(!curProject()){
     main.innerHTML=`<div class="empty"><div class="big">まだ作品がありません</div>
-      <button class="btn primary" onclick="openProjectModal()">＋ 最初の作品を作る</button></div>`;
+      ${canAddProject()?`<button class="btn primary" onclick="openProjectModal()">＋ 最初の作品を作る</button>`:``}</div>`;
     renderCharBubbles();
     return;
   }
@@ -604,16 +797,19 @@ function avatarHtml(c, cls){
   return c.image ? `<img class="${cls}" src="${esc(c.image)}" alt="">`
     : `<div class="${cls}" style="background:${c.color||'#888'}">${esc((c.name||'?').slice(0,1))}</div>`;
 }
-function charFieldsHtml(c){
+function charFieldsHtml(c, drag){
   const flds=(c.fields||[]).filter(f=>f.k||f.v);
-  return flds.length ? flds.map(f=>`<div class="cf-row"><span class="cf-k">${esc(f.k)}</span><span class="cf-v">${esc(f.v)}</span></div>`).join("")
+  const val=f=> (drag && f.v)
+    ? `<span class="cf-v drag-text" draggable="true" title="ドラッグで入力欄に入れられます">${esc(f.v)}</span>`
+    : `<span class="cf-v">${esc(f.v)}</span>`;
+  return flds.length ? flds.map(f=>`<div class="cf-row"><span class="cf-k">${esc(f.k)}</span>${val(f)}</div>`).join("")
     : `<div class="muted" style="font-size:12px">項目なし</div>`;
 }
 function cdDetailInner(c){
-  return `<div class="cd-detail-head">${avatarHtml(c,'cd-ava')}<div class="char-name">${esc(c.name||'(無名)')}</div>
+  return `<div class="cd-detail-head">${avatarHtml(c,'cd-ava')}<div class="char-name drag-text" draggable="true" title="ドラッグで入力欄に入れられます">${esc(c.name||'(無名)')}</div>
     <button class="cd-edit" id="cdEdit" title="編集">編集</button>
     <button class="cd-close" id="cdClose" title="閉じる">✕</button></div>
-    <div class="char-fields">${charFieldsHtml(c)}</div>${tagChipsHtml(c.tags)}`;
+    <div class="char-fields">${charFieldsHtml(c, true)}</div>${tagChipsHtml(c.tags)}`;
 }
 function syncActiveBubbles(){ _bubSim.forEach(n=>n.el&&n.el.classList.toggle("active", n.id===_bubbleCharId)); }
 function renderCharBubbles(){   // DOMとキャラ一覧を同期し、物理ループを起動
@@ -695,7 +891,14 @@ function renderBubbleDetail(){   // 冪等：中身が変化した時だけ作�
   let det=document.getElementById("cdDetailEl");
   const c=_bubbleCharId ? (cur().characters||[]).find(x=>x.id===_bubbleCharId) : null;
   if(!c){ if(det) det.remove(); _detailSig=null; return; }
-  if(!det){ det=document.createElement("div"); det.id="cdDetailEl"; det.className="cd-detail"; dock.appendChild(det); _detailSig=null; }
+  if(!det){ det=document.createElement("div"); det.id="cdDetailEl"; det.className="cd-detail"; dock.appendChild(det); _detailSig=null;
+    // 名前・項目の値を掴んで入力欄へ。落とした先への挿入はブラウザ標準の動作に任せる
+    det.addEventListener("dragstart", e=>{
+      const el=e.target.closest && e.target.closest(".drag-text"); if(!el) return;
+      e.dataTransfer.setData("text/plain", el.textContent);
+      e.dataTransfer.effectAllowed="copy";
+    });
+  }
   const sig=_bubbleCharId+"|"+JSON.stringify([c.name,c.color,c.image,c.fields,c.tags]);
   if(_detailSig!==sig){
     det.innerHTML=cdDetailInner(c);
@@ -733,24 +936,31 @@ function positionDetail(){
 function renderCharacters(main){
   const list=cur().characters.filter(tagMatch);
   main.innerHTML=`<div class="view-head"><h2>キャラクター</h2><span class="muted">${list.length}人</span>
-    <div class="spacer" style="flex:1"></div><button class="btn primary" id="addChar">＋ キャラ追加</button></div>
+    <div class="spacer" style="flex:1"></div>
+    <button class="btn" id="charTpl" title="新規キャラにあらかじめ入る項目">項目テンプレート</button>
+    <button class="btn primary" id="addChar">＋ キャラ追加</button></div>
     ${tagFilterBarHtml()}
     ${list.length? `<div class="grid" id="charGrid"></div>` : ``}`;
   document.getElementById("addChar").onclick=()=>editCharacter(null);
+  document.getElementById("charTpl").onclick=editCharTemplate;
   const grid=document.getElementById("charGrid");
   if(grid){ grid.innerHTML=list.map(c=>{
-    return `<div class="card" data-id="${c.id}"><div class="char-top">${avatarHtml(c,'avatar')}
+    return `<div class="card" data-id="${c.id}">${gripHtml()}<div class="char-top">${avatarHtml(c,'avatar')}
       <div class="char-body"><div class="char-name">${esc(c.name||"(無名)")}</div>
-      <div class="char-fields">${charFieldsHtml(c)}</div></div></div>${tagChipsHtml(c.tags)}</div>`;
+      <div class="char-fields">${charFieldsHtml(c)}</div></div></div>${tagChipsHtml(c.tags)}
+      <div class="row"><button class="mini edit">編集</button></div></div>`;
   }).join("");
-    grid.querySelectorAll(".card").forEach(el=>el.onclick=()=>editCharacter(el.dataset.id));
+    grid.querySelectorAll(".card .edit").forEach(b=>b.onclick=()=>editCharacter(b.closest(".card").dataset.id));
+    bindCardDrag(grid, ids=>{ reorderById(cur().characters, ids); save(); });
   }
   wireTags(main);
 }
 function editCharacter(id){
   if(!id && !guardAdd('characters', cur().characters.length)) return;
-  const c = id? cur().characters.find(x=>x.id===id) : {id:uid(),name:"",color:COLORS[cur().characters.length%COLORS.length],image:"",fields:[{k:"身長",v:""},{k:"体重",v:""},{k:"年齢",v:""},{k:"種族",v:""},{k:"一人称",v:""},{k:"性格",v:""}],tags:[]};
-  const fieldsHtml = (c.fields.length?c.fields:[{k:"",v:""}]).map((f,i)=>fieldRow(f,i)).join("");
+  const c = id? cur().characters.find(x=>x.id===id)
+              : {id:uid(),name:"",color:COLORS[cur().characters.length%COLORS.length],image:"",
+                 fields:charTemplate().map(f=>({k:f.k,v:f.v||""})), tags:[]};
+  const fieldsHtml = (c.fields.length?c.fields:[{k:"",v:""}]).map(f=>fieldRow(f)).join("");
   openModal(`<h3>${id?"キャラ編集":"キャラ追加"}</h3>
     <div class="field"><label>名前</label><input id="cName" value="${esc(c.name)}" placeholder="キャラクター名"></div>
     <div class="field"><label>タグ（カンマ区切り）</label><input id="cTags" value="${esc((c.tags||[]).join(', '))}"></div>
@@ -774,9 +984,9 @@ function editCharacter(id){
       };
       root.querySelector("#addField").onclick=()=>{
         const d=document.createElement("div"); d.innerHTML=fieldRow({k:"",v:""});
-        root.querySelector("#cFields").appendChild(d.firstElementChild); bindFieldRemovers(root); bindFieldDrag(root);
+        root.querySelector("#cFields").appendChild(d.firstElementChild); bindFieldRemovers(root);
       };
-      bindFieldRemovers(root); bindFieldDrag(root);
+      bindFieldRemovers(root); bindCardDrag(root.querySelector("#cFields"));
       root.querySelector("#saveChar").onclick=()=>{
         const name=root.querySelector("#cName").value.trim();
         const color=(root.querySelector('input[name="col"]:checked')||{}).value||c.color;
@@ -786,59 +996,163 @@ function editCharacter(id){
         const tags=parseTags(root.querySelector("#cTags").value);
         const obj={id:c.id,name,color,image,fields,tags};
         if(id){ const i=cur().characters.findIndex(x=>x.id===id); cur().characters[i]=obj; }
-        else { cur().characters.push(obj); _flashId=obj.id; }
+        else { cur().characters.push(obj); }
+        flashSaved(obj.id, !id);
         save(); closeModal(); renderView();
       };
-      if(id) root.querySelector("#delChar").onclick=()=>{
-        if(!confirm("このキャラを削除しますか？関連する相関図の線も消えます")) return;
-        cur().characters=cur().characters.filter(x=>x.id!==id);
-        cur().relations=cur().relations.filter(r=>r.from!==id&&r.to!==id);
-        save(); closeModal(); renderView();
+      if(id) root.querySelector("#delChar").onclick=async ()=>{
+        if(!await confirmDialog("キャラクターを削除",
+          `「<b>${esc(c.name||"(無名)")}</b>」を削除します。<br><span class="muted">相関図でこのキャラに繋がっている線も消えます。元に戻せません。</span>`)) return;
+        closeModal();
+        withShatter(id, ()=>{
+          cur().characters=cur().characters.filter(x=>x.id!==id);
+          cur().relations=cur().relations.filter(r=>r.from!==id&&r.to!==id);
+          save(); renderView();
+        });
       };
     });
 }
-const GRIP_SVG = `<svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.2"/><circle cx="7" cy="3" r="1.2"/><circle cx="3" cy="8" r="1.2"/><circle cx="7" cy="8" r="1.2"/><circle cx="3" cy="13" r="1.2"/><circle cx="7" cy="13" r="1.2"/></svg>`;
-function fieldRow(f){ return `<div class="field-row"><span class="fld-grip" title="ドラッグで並べ替え">${GRIP_SVG}</span><input class="fk" placeholder="項目名" value="${esc(f.k)}"><input class="fv" placeholder="内容" value="${esc(f.v)}"><button class="mini rm" title="削除">×</button></div>`; }
-function bindFieldRemovers(root){ root.querySelectorAll("#cFields .rm").forEach(b=>b.onclick=()=>{ b.closest(".field-row").remove(); }); }
-// 項目の並べ替え：グリップをポインタで掴んで上下にドラッグ（保存は #cFields のDOM順を読むのでDOMを入れ替えるだけでよい）
-function bindFieldDrag(root){
-  const host=root.querySelector("#cFields"); if(!host) return;
-  host.querySelectorAll(".fld-grip").forEach(g=>{
-    if(g._dragWired) return; g._dragWired=true;
-    g.addEventListener("pointerdown", e=>{
-      if(e.pointerType==="mouse" && e.button!==0) return;
-      const row=g.closest(".field-row"); if(!row) return;
-      e.preventDefault();
-      let startY=e.clientY, rect=row.getBoundingClientRect();
-      row.classList.add("dragging");
-      try{ g.setPointerCapture(e.pointerId); }catch(_){}
-      // 入れ替えで自分のレイアウト位置が1行分ずれるので、ずれた分だけ基準をずらす
-      // （基準を現在のポインタ位置にリセットすると、しきい値超過分が毎回捨てられて1段ずつ取りこぼす）
-      const rebase=(y)=>{
-        const prevTop=rect.top;
-        row.style.transform=""; rect=row.getBoundingClientRect();
-        startY += rect.top-prevTop;
-        row.style.transform="translateY("+(y-startY)+"px)";
+// 新規キャラの項目テンプレート（作品ごと）。行のUIはキャラ編集と同じものを使い回す（#cFields）
+function editCharTemplate(){
+  const VP="初期値";
+  const rows=(t)=>(t.length?t:[{k:"",v:""}]).map(f=>fieldRow(f,VP)).join("");
+  openModal(`<h3>キャラの項目テンプレート</h3>
+    <div class="field"><div id="cFields">${rows(charTemplate())}</div>
+      <button class="mini" id="addField" style="margin-top:4px">＋ 項目追加</button></div>
+    <div class="modal-actions">
+      <button class="btn" id="tplReset" title="身長・体重・年齢・種族・一人称・性格">既定に戻す</button>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" data-close>キャンセル</button>
+      <button class="btn primary" id="tplSave">保存</button>
+    </div>`, (root)=>{
+      const wire=()=>{ bindFieldRemovers(root); bindCardDrag(root.querySelector("#cFields")); };
+      root.querySelector("#addField").onclick=()=>{
+        const d=document.createElement("div"); d.innerHTML=fieldRow({k:"",v:""},VP);
+        root.querySelector("#cFields").appendChild(d.firstElementChild); wire();
       };
-      const sib=(el)=>(el && el.classList && el.classList.contains("field-row")) ? el : null;
-      const move=ev=>{
-        row.style.transform="translateY("+(ev.clientY-startY)+"px)";
-        // 1イベントで大きく動いた時（速いドラッグ）も追いつくよう、必要な回数だけ入れ替える
-        for(;;){
-          const mid=rect.top+rect.height/2+(ev.clientY-startY);
-          const prev=sib(row.previousElementSibling), next=sib(row.nextElementSibling);
-          if(prev){ const r=prev.getBoundingClientRect(); if(mid < r.top+r.height/2){ host.insertBefore(row, prev); rebase(ev.clientY); continue; } }
-          if(next){ const r=next.getBoundingClientRect(); if(mid > r.top+r.height/2){ host.insertBefore(next, row); rebase(ev.clientY); continue; } }
-          break;
-        }
+      root.querySelector("#tplReset").onclick=()=>{
+        root.querySelector("#cFields").innerHTML=rows(defaultCharFields()); wire();
       };
-      const up=()=>{
-        g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.removeEventListener("pointercancel", up);
-        row.classList.remove("dragging"); row.style.transform="";
+      root.querySelector("#tplSave").onclick=()=>{
+        const list=[...root.querySelectorAll("#cFields .field-row")].map(r=>({
+          k:r.querySelector(".fk").value.trim(), v:r.querySelector(".fv").value.trim()
+        })).filter(f=>f.k);   // 項目名が空の行は捨てる
+        cur().charTemplate=list; save(); closeModal();
+        toast(list.length? `項目テンプレートを保存しました（${list.length}項目）` : "項目テンプレートを空にしました");
       };
-      g.addEventListener("pointermove", move); g.addEventListener("pointerup", up); g.addEventListener("pointercancel", up);
+      wire();
     });
+}
+const GRIP_SVG = `<svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.2"/><circle cx="7" cy="3" r="1.2"/><circle cx="3" cy="8" r="1.2"/><circle cx="7" cy="8" r="1.2"/><circle cx="3" cy="13" r="1.2"/><circle cx="7" cy="13" r="1.2"/></svg>`;
+let _frSeq=0;
+function fieldRow(f, vPlaceholder){ return `<div class="field-row" data-id="fr${++_frSeq}"><span class="drag-grip fld-grip" title="ドラッグで並べ替え">${GRIP_SVG}</span><input class="fk" placeholder="項目名" value="${esc(f.k)}"><input class="fv" placeholder="${esc(vPlaceholder||"内容")}" value="${esc(f.v)}"><button class="mini rm" title="削除">×</button></div>`; }
+function bindFieldRemovers(root){ root.querySelectorAll("#cFields .rm").forEach(b=>b.onclick=()=>{ b.closest(".field-row").remove(); }); }
+// ---- 並べ替え（ドラッグ）。host直下の子が単位。DOM順を commit(ids) でデータ側へ書き戻す ----
+// 並べ替えの単位は host の直下の子で、目印は data-id だけ。
+// data-id が無い子（「＋カード」「追加:」バー・カテゴリ見出し等）は並べ替え対象外になる。
+function dragId(el){ return (el && el.dataset && el.dataset.id) || ""; }
+function bindCardDrag(host, commit){
+  if(!host) return;
+  host.dataset.dragHost="1";
+  host._dragCommit=commit;
+  if(host._dragBound) return;   // 委譲なので1回で足りる（あとから増えた行もそのまま掴める）
+  host._dragBound=true;
+  // グリップのクリックで編集などを開かない（capture で先に止める）
+  host.addEventListener("click", e=>{ if(e.target.closest(".drag-grip")) e.stopPropagation(); }, true);
+  host.addEventListener("pointerdown", e=>{
+    const g=e.target.closest(".drag-grip"); if(!g) return;
+    if(e.pointerType==="mouse" && e.button!==0) return;
+    // 入れ子（選択肢の中のコマンド等）では外側の host にもイベントが上がってくるので、
+    // 担当かどうかはドラッグ開始時に見る（bind の順番に依存させない）。
+    if(g.closest("[data-drag-host]")!==host) return;
+    let card=g; while(card && card.parentElement!==host) card=card.parentElement;
+    if(!card) return;
+    const items=()=>[...host.children].filter(el=>dragId(el));
+    if(items().length<2) return;
+    e.preventDefault(); e.stopPropagation();
+    const order0=items().map(dragId).join(",");
+    let sx=e.clientX, sy=e.clientY, px=e.clientX, py=e.clientY;
+    let rect=card.getBoundingClientRect();
+    card.classList.add("drag-active");
+    // イベントは window で受ける。グリップに setPointerCapture すると、
+    // insertBefore で親をDOMで動かした瞬間にキャプチャが外れて
+    // 1回入れ替えたところでドラッグが死ぬ。
+    const others=()=>items().filter(el=>el!==card);
+    // 当たり判定は「レイアウト上の位置」で持つ（lay）。
+    // 滑っている最中の getBoundingClientRect() は移動途中の位置を返すので、
+    // それで判定すると滑ってきた相手に引っかかって入れ替えが往復し、後ろが高速で暴れる。
+    const lay=new Map();
+    let hostX=0, hostY=0;
+    const measure=()=>{
+      const hr=host.getBoundingClientRect(); hostX=hr.left; hostY=hr.top;
+      lay.clear();
+      const sibs=others();
+      for(const el of sibs){ if(el._flip){ el._flip.cancel(); el._flip=null; } }  // 先に全部止める
+      for(const el of sibs){ lay.set(el, el.getBoundingClientRect()); }           // 読みはまとめて（止めながら測るとレイアウトが毎回走る）
+    };
+    measure();
+    // 入れ替えると自分のレイアウト位置も動くので、動いた分だけ基準をずらす（でないと毎回1段ぶん取りこぼす）。
+    // 他は旧位置→新位置へ滑らせる（FLIP）。
+    const reorder=(fn)=>{
+      const before=new Map(others().map(el=>[el, el.getBoundingClientRect()]));  // 見た目の現在位置（アニメ中の位置込み）
+      const pl=rect.left, pt=rect.top;
+      fn();
+      card.style.transform=""; rect=card.getBoundingClientRect();
+      sx+=rect.left-pl; sy+=rect.top-pt;
+      card.style.transform="translate("+(px-sx)+"px,"+(py-sy)+"px)";
+      measure();
+      if(prefersReduced()) return;
+      for(const [el, r] of lay){
+        const b=before.get(el); if(!b) continue;
+        const dx=b.left-r.left, dy=b.top-r.top;
+        if(dx||dy) el._flip=el.animate([{transform:"translate("+dx+"px,"+dy+"px)"},{transform:"none"}],
+          {duration:170, easing:"cubic-bezier(.2,.7,.3,1)"});
+      }
+    };
+    const move=ev=>{
+      px=ev.clientX; py=ev.clientY;
+      card.style.transform="translate("+(px-sx)+"px,"+(py-sy)+"px)";
+      const hr=host.getBoundingClientRect();
+      if(Math.abs(hr.left-hostX)>1 || Math.abs(hr.top-hostY)>1) measure();   // スクロール等でずれたら測り直す
+      // 判定の基準点は「掴んでいるもの自身の中心」。ポインタ位置で見ると、
+      // グリップの位置（上端や右上）によって当たったり当たらなかったりする。
+      // 内側を少し削るのはヒステリシス（境目でばたつかせない）。
+      const inside=(el)=>{ const r=lay.get(el); if(!r) return false;
+        const mx=r.width*0.15, my=r.height*0.15;
+        const cx=rect.left+(px-sx)+rect.width/2, cy=rect.top+(py-sy)+rect.height/2;
+        return cx>=r.left+mx && cx<=r.right-mx && cy>=r.top+my && cy<=r.bottom-my; };
+      // 1イベントで大きく動いた時（速いドラッグ）も追いつくよう、必要な回数だけ入れ替える。
+      // 同じ相手を2回続けて掴むのは行ったり来たりなので止める。
+      let prev=null;
+      for(let k=items().length; k>0; k--){
+        const kids=items();
+        const hit=kids.find(el=>el!==card && inside(el));
+        if(!hit || hit===prev) break;
+        prev=hit;
+        const after = kids.indexOf(hit) > kids.indexOf(card);
+        reorder(()=>host.insertBefore(card, after ? hit.nextElementSibling : hit));
+      }
+    };
+    const up=()=>{
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+      card.classList.remove("drag-active"); card.style.transform="";
+      for(const el of others()){ if(el._flip){ el._flip.cancel(); el._flip=null; } }
+      const ids=items().map(dragId);
+      if(ids.join(",")!==order0 && typeof host._dragCommit==="function") host._dragCommit(ids);
+    };
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
   });
+}
+function gripHtml(){ return `<span class="drag-grip" title="ドラッグで並べ替え">${GRIP_SVG}</span>`; }
+// 絞り込み表示でも破綻しないよう、ids が元々占めていた位置だけを ids の順で埋め直す
+function reorderById(arr, ids){
+  const set=new Set(ids), byId={}, slots=[];
+  arr.forEach((x,i)=>{ if(set.has(x.id)){ byId[x.id]=x; slots.push(i); } });
+  slots.forEach((pos,k)=>{ const x=byId[ids[k]]; if(x) arr[pos]=x; });
 }
 
 // ---- プロット ----
@@ -869,39 +1183,39 @@ function renderPlot(main){
     body.innerHTML=p.chapters.map((ch,ci)=>{
       const lanes=KISHO.map(s=>{ const cards=p.cards.filter(c=>c.chapter===ch.id && c.section===s.k && tagMatch(c));
         return plotLaneHtml(ch.id+":"+s.k, s.label, s.color, cards); }).join("");
-      return `<div class="plot-ch-block" data-ch="${ch.id}">
+      return `<div class="plot-ch-block" data-id="${ch.id}">
         <div class="plot-ch-head"><span class="dot" style="background:${COLORS[ci%COLORS.length]}"></span>
           <input class="plot-ch-title" value="${esc(ch.title)}" placeholder="章タイトル">
-          <button class="mini pch-up" ${ci===0?'disabled':''} title="上へ">▲</button>
-          <button class="mini pch-down" ${ci===p.chapters.length-1?'disabled':''} title="下へ">▼</button>
+          ${gripHtml()}
           <button class="mini pch-del" title="この章を削除">✕</button></div>
         <div class="lanes">${lanes}</div></div>`;
     }).join("");
     const addCh=main.querySelector("#plotAddCh"); if(addCh) addCh.onclick=()=>{ p.chapters.push({id:uid(),title:"第"+(p.chapters.length+1)+"章"}); save(); renderView(); };
     body.querySelectorAll(".plot-ch-block").forEach(bl=>{
-      const chId=bl.dataset.ch; const ch=p.chapters.find(x=>x.id===chId); if(!ch) return;
+      const chId=bl.dataset.id; const ch=p.chapters.find(x=>x.id===chId); if(!ch) return;
       bl.querySelector(".plot-ch-title").onchange=(e)=>{ ch.title=e.target.value.trim()||"(無題の章)"; save(); };
-      bl.querySelector(".pch-up").onclick=()=>movePlotChapter(chId,-1);
-      bl.querySelector(".pch-down").onclick=()=>movePlotChapter(chId,1);
-      bl.querySelector(".pch-del").onclick=()=>{
-        if(p.chapters.length<=1){ alert("章は最低1つ必要です"); return; }
+      bl.querySelector(".pch-del").onclick=async ()=>{
+        if(p.chapters.length<=1){ noticeModal("削除できません", "章は最低1つ必要です。"); return; }
         const cnt=p.cards.filter(c=>c.chapter===chId).length;
-        if(!confirm(`章「${ch.title}」を削除します${cnt?`（カード${cnt}枚も一緒に削除）`:''}。よろしいですか？`)) return;
-        p.chapters=p.chapters.filter(x=>x.id!==chId); p.cards=p.cards.filter(c=>c.chapter!==chId); save(); renderView();
+        if(!await confirmDialog("章を削除",
+          `プロットの章「<b>${esc(ch.title)}</b>」を削除します。${cnt?`<b>カード${cnt}枚も一緒に消えます。</b>`:""}<br><span class="muted">元に戻せません。</span>`)) return;
+        withShatter(chId, ()=>{ p.chapters=p.chapters.filter(x=>x.id!==chId);
+          p.cards=p.cards.filter(c=>c.chapter!==chId); save(); renderView(); });
       };
     });
   }
   body.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>editPlotCard(null,b.dataset.add));
   body.querySelectorAll(".plot-card").forEach(el=>{
     el.querySelector(".edit").onclick=()=>editPlotCard(el.dataset.id);
-    el.querySelector(".up").onclick=()=>movePlotCard(el.dataset.id,-1);
-    el.querySelector(".down").onclick=()=>movePlotCard(el.dataset.id,1);
   });
+  body.querySelectorAll(".lane-cards").forEach(h=>bindCardDrag(h, ids=>{ reorderById(cur().plot.cards, ids); save(); }));
+  // 章は見出しの色が順番で決まるので描き直す
+  bindCardDrag(body, ids=>{ reorderById(cur().plot.chapters, ids); save(); renderView(); });
   wireTags(main);
 }
 function plotLaneHtml(addKey,label,color,cards){
   return `<div class="lane"><h3><span class="dot" style="background:${color}"></span>${esc(label)}</h3>
-    <div>${cards.map((c,i)=>plotCardHtml(c,i,cards.length)).join("")}</div>
+    <div class="lane-cards">${cards.map(c=>plotCardHtml(c)).join("")}</div>
     <button class="add-card" data-add="${addKey}">＋ カード</button></div>`;
 }
 function migratePlotChapters(p){   // 旧データ（章なしの起承転結カード）を先頭章へ移す
@@ -910,23 +1224,10 @@ function migratePlotChapters(p){   // 旧データ（章なしの起承転結カ
   p.cards.forEach(c=>{ if(["ki","sho","ten","ketsu"].includes(c.section) && !c.chapter){ c.chapter=first; changed=true; } });
   if(changed) save();
 }
-function movePlotChapter(id,dir){
-  const chs=cur().plot.chapters; const i=chs.findIndex(c=>c.id===id); const j=i+dir;
-  if(j<0||j>=chs.length) return; [chs[i],chs[j]]=[chs[j],chs[i]]; save(); renderView();
-}
-function plotCardHtml(c,i,n){ return `<div class="plot-card" data-id="${c.id}">
+function plotCardHtml(c){ return `<div class="plot-card" data-id="${c.id}">
   <div class="t">${esc(c.title||"(無題)")}</div>${c.body?`<div class="b">${esc(c.body)}</div>`:""}
   ${tagChipsHtml(c.tags)}
-  <div class="row"><button class="mini up" ${i===0?"disabled":""}>▲</button>
-  <button class="mini down" ${i===n-1?"disabled":""}>▼</button>
-  <button class="mini edit">編集</button></div></div>`; }
-function movePlotCard(id,dir){
-  const p=cur().plot; const card=p.cards.find(c=>c.id===id);
-  const grp=p.cards.filter(c=>c.section===card.section && c.chapter===card.chapter);   // 同じ章・同じ節の中で並替
-  const idx=grp.indexOf(card); const swap=grp[idx+dir]; if(!swap)return;
-  const a=p.cards.indexOf(card), b=p.cards.indexOf(swap);
-  [p.cards[a],p.cards[b]]=[p.cards[b],p.cards[a]]; save(); renderView();
-}
+  <div class="row">${gripHtml()}<button class="mini edit">編集</button></div></div>`; }
 function editPlotCard(id,addKey){
   if(!id && !guardAdd('plot', cur().plot.cards.length)) return;
   let chapter=null, section=addKey;
@@ -942,9 +1243,13 @@ function editPlotCard(id,addKey){
     (root)=>{
       root.querySelector("#pcSave").onclick=()=>{
         c.title=root.querySelector("#pcT").value.trim(); c.body=root.querySelector("#pcB").value.trim(); c.tags=parseTags(root.querySelector("#pcTags").value);
-        if(!id){ cur().plot.cards.push(c); _flashId=c.id; } save(); closeModal(); renderView();
+        if(!id){ cur().plot.cards.push(c); } flashSaved(c.id, !id); save(); closeModal(); renderView();
       };
-      if(id) root.querySelector("#pcDel").onclick=()=>{ cur().plot.cards=cur().plot.cards.filter(x=>x.id!==id); save(); closeModal(); renderView(); };
+      if(id) root.querySelector("#pcDel").onclick=async ()=>{
+        if(!await confirmDialog("カードを削除",
+          `${c.title?`「<b>${esc(c.title)}</b>」を`:"このカードを"}削除します。<br><span class="muted">元に戻せません。</span>`)) return;
+        closeModal();
+        withShatter(id, ()=>{ cur().plot.cards=cur().plot.cards.filter(x=>x.id!==id); save(); renderView(); }); };
     });
 }
 
@@ -962,8 +1267,11 @@ function renderWorld(main){
     ${list.filter(w=>(w.category||"その他")===cat).map(w=>`<div class="world-item" data-id="${w.id}">
       <div class="t">${esc(w.title||"(無題)")}</div>${w.body?`<div class="b">${esc(w.body)}</div>`:""}
       ${tagChipsHtml(w.tags)}
+      ${gripHtml()}
       <div class="row"><button class="mini edit">編集</button></div></div>`).join("")}</div>`).join("");
   host.querySelectorAll(".world-item .edit").forEach(b=>b.onclick=()=>editWorld(b.closest(".world-item").dataset.id));
+  // 並べ替えはカテゴリの中だけ（カテゴリ見出しは id が無いので対象外＝常に先頭に残る）
+  host.querySelectorAll(".world-cat").forEach(h=>bindCardDrag(h, ids=>{ reorderById(cur().world, ids); save(); }));
   wireTags(main);
 }
 function editWorld(id){
@@ -982,9 +1290,13 @@ function editWorld(id){
     (root)=>{
       root.querySelector("#wSave").onclick=()=>{
         w.category=root.querySelector("#wCat").value.trim(); w.title=root.querySelector("#wT").value.trim(); w.body=root.querySelector("#wB").value.trim(); w.tags=parseTags(root.querySelector("#wTags").value);
-        if(!id){ cur().world.push(w); _flashId=w.id; } save(); closeModal(); renderView();
+        if(!id){ cur().world.push(w); } flashSaved(w.id, !id); save(); closeModal(); renderView();
       };
-      if(id) root.querySelector("#wDel").onclick=()=>{ cur().world=cur().world.filter(x=>x.id!==id); save(); closeModal(); renderView(); };
+      if(id) root.querySelector("#wDel").onclick=async ()=>{
+        if(!await confirmDialog("世界観の項目を削除",
+          `${w.title?`「<b>${esc(w.title)}</b>」を`:"この項目を"}削除します。<br><span class="muted">元に戻せません。</span>`)) return;
+        closeModal();
+        withShatter(id, ()=>{ cur().world=cur().world.filter(x=>x.id!==id); save(); renderView(); }); };
     });
 }
 
@@ -1015,9 +1327,10 @@ function renderRelations(main){
     return `<div class="rel-row" data-id="${r.id}"><b>${esc(a.name)}</b>
       <span class="lbl">— ${esc(r.label||"関係")} →</span><b>${esc(b.name)}</b>
       ${r.call?`<span class="rel-call">「${esc(r.call)}」と呼ぶ</span>`:""}
-      <button class="mini edit">編集</button></div>`;
+      <button class="mini edit">編集</button>${gripHtml()}</div>`;
   }).join("");
   document.querySelectorAll("#relList .edit").forEach(btn=>btn.onclick=()=>editRelation(btn.closest(".rel-row").dataset.id));
+  bindCardDrag(document.getElementById("relList"), ids=>{ reorderById(cur().relations, ids); save(); });
 }
 // 相関図：力学レイアウト（反発＋バネ＋減衰）＋ドラッグで「ふにふに」動く
 let _relSim=null, _relMode='relation';   // 'relation'=関係ラベル / 'call'=呼び方を矢印に表示
@@ -1117,10 +1430,15 @@ function editRelation(id){
     (root)=>{
       root.querySelector("#rSave").onclick=()=>{
         r.from=root.querySelector("#rFrom").value; r.to=root.querySelector("#rTo").value; r.label=root.querySelector("#rLabel").value.trim(); r.call=root.querySelector("#rCall").value.trim();
-        if(r.from===r.to){alert("別のキャラを選んでください");return;}
-        if(!id){ cur().relations.push(r); _flashId=r.id; } save(); closeModal(); renderView();
+        if(r.from===r.to){toast("別のキャラを選んでください","err");return;}
+        if(!id){ cur().relations.push(r); } flashSaved(r.id, !id); save(); closeModal(); renderView();
       };
-      if(id) root.querySelector("#rDel").onclick=()=>{ cur().relations=cur().relations.filter(x=>x.id!==id); save(); closeModal(); renderView(); };
+      if(id) root.querySelector("#rDel").onclick=async ()=>{
+        const nm=(x)=>{ const h=chars.find(ch=>ch.id===x); return esc((h&&h.name)||"(無名)"); };
+        if(!await confirmDialog("関係を削除",
+          `<b>${nm(r.from)}</b> → <b>${nm(r.to)}</b>${r.label?`（${esc(r.label)}）`:""} の関係を削除します。<br><span class="muted">相関図からこの線が消えます。元に戻せません。</span>`)) return;
+        closeModal();
+        withShatter(id, ()=>{ cur().relations=cur().relations.filter(x=>x.id!==id); save(); renderView(); }); };
     });
 }
 
@@ -1134,7 +1452,7 @@ function renderTimeline(main){
   document.getElementById("addTl").onclick=()=>editTimelineEvent(null);
   const host=document.getElementById("tlHost");
   if(!host) return;
-  host.innerHTML=events.map((ev,i)=>{
+  host.innerHTML=events.map(ev=>{
     const chips=(ev.charIds||[]).map(cid=>{ const c=chars.find(x=>x.id===cid); if(!c)return"";
       return `<span class="tl-chip"><span class="cd" style="background:${c.color||'#888'}"></span>${esc(c.name)}</span>`;}).join("");
     return `<div class="tl-item" data-id="${ev.id}">
@@ -1144,21 +1462,13 @@ function renderTimeline(main){
         <div class="t">${esc(ev.title||"(無題)")}</div>
         ${ev.body?`<div class="b">${esc(ev.body)}</div>`:""}
         ${chips?`<div class="tl-chars">${chips}</div>`:""}
-        <div class="row"><button class="mini up" ${i===0?"disabled":""}>▲</button>
-          <button class="mini down" ${i===events.length-1?"disabled":""}>▼</button>
-          <button class="mini edit">編集</button></div>
+        <div class="row">${gripHtml()}<button class="mini edit">編集</button></div>
       </div></div>`;
   }).join("");
   host.querySelectorAll(".tl-item").forEach(el=>{
-    const id=el.dataset.id;
-    el.querySelector(".edit").onclick=()=>editTimelineEvent(id);
-    el.querySelector(".up").onclick=()=>moveTimelineEvent(id,-1);
-    el.querySelector(".down").onclick=()=>moveTimelineEvent(id,1);
+    el.querySelector(".edit").onclick=()=>editTimelineEvent(el.dataset.id);
   });
-}
-function moveTimelineEvent(id,dir){
-  const arr=cur().timeline; const i=arr.findIndex(e=>e.id===id); const j=i+dir;
-  if(j<0||j>=arr.length) return; [arr[i],arr[j]]=[arr[j],arr[i]]; save(); renderView();
+  bindCardDrag(host, ids=>{ reorderById(cur().timeline, ids); save(); });
 }
 function editTimelineEvent(id){
   if(!cur().timeline) cur().timeline=[];
@@ -1182,10 +1492,13 @@ function editTimelineEvent(id){
         ev.title=root.querySelector("#tlTitle").value.trim();
         ev.body=root.querySelector("#tlBody").value.trim();
         ev.charIds=[...root.querySelectorAll(".char-check input:checked")].map(c=>c.value);
-        if(!id){ cur().timeline.push(ev); _flashId=ev.id; } save(); closeModal(); renderView();
+        if(!id){ cur().timeline.push(ev); } flashSaved(ev.id, !id); save(); closeModal(); renderView();
       };
-      if(id) root.querySelector("#tlDel").onclick=()=>{
-        cur().timeline=cur().timeline.filter(x=>x.id!==id); save(); closeModal(); renderView();
+      if(id) root.querySelector("#tlDel").onclick=async ()=>{
+        if(!await confirmDialog("出来事を削除",
+          `${ev.title?`「<b>${esc(ev.title)}</b>」を`:"この出来事を"}削除します。<br><span class="muted">元に戻せません。</span>`)) return;
+        closeModal();
+        withShatter(id, ()=>{ cur().timeline=cur().timeline.filter(x=>x.id!==id); save(); renderView(); });
       };
     });
 }
@@ -1230,23 +1543,19 @@ function msHeadCount(){
 function renderChapterList(){
   const host = document.getElementById("msChaps"); if(!host) return;
   const chapters = manuscript().chapters;
-  host.innerHTML = chapters.map((c,i)=>`
+  host.innerHTML = chapters.map(c=>`
     <div class="ms-chap ${c.id===_msCurrentChapter?'active':''}" data-id="${c.id}">
       <div class="ms-chap-main">
         <div class="ms-chap-title">${esc(c.title||'無題')}</div>
         <div class="ms-chap-count">${msCountChars(c.body).toLocaleString()}字</div>
       </div>
-      <div class="ms-chap-ord">
-        <button class="mini up" ${i===0?'disabled':''} title="上へ">▲</button>
-        <button class="mini down" ${i===chapters.length-1?'disabled':''} title="下へ">▼</button>
-      </div>
+      ${gripHtml()}
     </div>`).join("");
   host.querySelectorAll(".ms-chap").forEach(el=>{
     const id=el.dataset.id;
-    el.querySelector(".ms-chap-main").onclick=()=>{ _msCurrentChapter=id; renderChapterList(); renderChapterEditor(); };
-    el.querySelector(".up").onclick=(e)=>{ e.stopPropagation(); moveChapter(id,-1); };
-    el.querySelector(".down").onclick=(e)=>{ e.stopPropagation(); moveChapter(id,1); };
+    el.querySelector(".ms-chap-main").onclick=()=>{ _msCurrentChapter=id; renderChapterList(); renderChapterEditor(); touchPresence(); };
   });
+  bindCardDrag(host, ids=>{ reorderById(manuscript().chapters, ids); save(); });
 }
 function renderChapterEditor(){
   const host=document.getElementById("msEditor"); if(!host) return;
@@ -1296,7 +1605,7 @@ function insertRubyModal(){
       (sel?yomiEl:baseEl).focus();
       const doIns=()=>{
         const base=baseEl.value.trim(), y=yomiEl.value.trim();
-        if(!base||!y){ alert("漢字とよみの両方を入力してください"); return; }
+        if(!base||!y){ toast("漢字とよみの両方を入力してください","err"); return; }
         const ins=`｜${base}《${y}》`;
         const ch=manuscript().chapters.find(c=>c.id===_msCurrentChapter); if(!ch) return;
         ch.body = full.slice(0,start) + ins + full.slice(end);
@@ -1320,16 +1629,15 @@ function addChapter(){
   save(); queueChapterSync(state.currentId, ch.id); renderView();
   setTimeout(()=>document.getElementById("msTitle")?.focus(),0);
 }
-function moveChapter(id,dir){
-  const arr=manuscript().chapters; const i=arr.findIndex(c=>c.id===id); const j=i+dir;
-  if(j<0||j>=arr.length) return; [arr[i],arr[j]]=[arr[j],arr[i]]; save(); renderChapterList();
-}
-function deleteChapter(id){
+async function deleteChapter(id){
   const ch=manuscript().chapters.find(c=>c.id===id); if(!ch) return;
-  if(!confirm(`「${ch.title||'無題'}」を削除します。よろしいですか？`)) return;
-  manuscript().chapters = manuscript().chapters.filter(c=>c.id!==id);
-  if(_msCurrentChapter===id) _msCurrentChapter = manuscript().chapters[0]?.id || null;
-  save(); deleteChapterRemote(state.currentId, id); renderView();
+  if(!await confirmDialog("章を削除",
+    `「<b>${esc(ch.title||"無題")}</b>」を削除します。<br><span class="muted">本文もまとめて消えます。元に戻せません。</span>`)) return;
+  withShatter(id, ()=>{
+    manuscript().chapters = manuscript().chapters.filter(c=>c.id!==id);
+    if(_msCurrentChapter===id) _msCurrentChapter = manuscript().chapters[0]?.id || null;
+    save(); deleteChapterRemote(state.currentId, id); renderView();
+  });
 }
 // 青空文庫形式のルビを <ruby> に変換（｜親文字《ルビ》 と 漢字《ルビ》）
 function renderRuby(text){
@@ -1374,12 +1682,18 @@ function loadBookSettings(){ try{ return {...BOOK_DEFAULTS, ...(JSON.parse(local
 function saveBookSettings(s){ try{ localStorage.setItem("fabula:book", JSON.stringify(s)); }catch(e){} }
 
 function openBook(){
-  if(!manuscript().chapters.length){ alert("原稿がありません。章を追加してください。"); return; }
+  if(!manuscript().chapters.length){ toast("原稿がありません。先に章を追加してください","err"); return; }
+  const full=isFull();   // PDF出力・印刷は支援者限定（プレビュー自体は体験版でも見られる）
+  const pb=document.getElementById("bookPrintBtn");
+  pb.className = full ? "btn primary" : "btn locked";
+  pb.disabled = !full;
+  pb.innerHTML = full ? "PDFに保存 / 印刷" : `PDFに保存 / 印刷<span class="lock-badge">支援者</span>`;
+  if(full) document.body.removeAttribute("data-trial"); else document.body.setAttribute("data-trial","1");
   const ov=document.getElementById("bookOverlay"); ov.hidden=false;
   document.getElementById("bookInfo").textContent="組版中…";
   setTimeout(renderBook, 30);
 }
-function closeBook(){ document.getElementById("bookOverlay").hidden=true; document.getElementById("bookPrint").innerHTML=""; }
+function closeBook(){ document.getElementById("bookOverlay").hidden=true; document.getElementById("bookPrint").innerHTML=""; document.body.removeAttribute("data-trial"); }
 
 function tokenizeRuby(line){
   const tokens=[]; const re=/｜([^《]+)《([^》]+)》|([一-龠々〆ヵヶ]+)《([^》]+)》/g; let m, last=0;
@@ -1486,7 +1800,8 @@ function openBookSettings(){
       };
     });
 }
-function printBook(){ window.print(); }
+function printBook(){ if(!isFull()) return;   // PDF出力は支援者限定
+  window.print(); }
 
 // ---- ゲームシナリオ（ノベルゲーム/ADV：シーン＝コマンド列・選択肢分岐・フロー図） ----
 function scenario(){ const d=cur(); if(!d.scenario) d.scenario={scenes:[],vars:[]}; if(!d.scenario.vars) d.scenario.vars=[]; return d.scenario; }
@@ -1542,17 +1857,16 @@ function renderScenario(main){
 function renderSceneList(){
   const host=document.getElementById("scScenes"); if(!host)return;
   const scenes=scenario().scenes;
-  host.innerHTML=scenes.map((s,i)=>`
+  host.innerHTML=scenes.map(s=>`
     <div class="ms-chap ${s.id===_scCurScene?'active':''}" data-id="${s.id}">
       <div class="ms-chap-main"><div class="ms-chap-title">${esc(s.title||'無題シーン')}</div>
         <div class="ms-chap-count">${(s.commands||[]).length}コマンド</div></div>
-      <div class="ms-chap-ord"><button class="mini up" ${i===0?'disabled':''}>▲</button><button class="mini down" ${i===scenes.length-1?'disabled':''}>▼</button></div>
+      ${gripHtml()}
     </div>`).join("");
   host.querySelectorAll(".ms-chap").forEach(el=>{const id=el.dataset.id;
     el.querySelector(".ms-chap-main").onclick=()=>{_scCurScene=id;renderSceneList();renderSceneEditor();};
-    el.querySelector(".up").onclick=e=>{e.stopPropagation();moveScene(id,-1);};
-    el.querySelector(".down").onclick=e=>{e.stopPropagation();moveScene(id,1);};
   });
+  bindCardDrag(host, ids=>{ reorderById(scenario().scenes, ids); save(); });
 }
 function renderSceneEditor(){
   const host=document.getElementById("scEditor"); if(!host)return;
@@ -1578,7 +1892,7 @@ function renderCmdList(){
   const s=scenario().scenes.find(x=>x.id===_scCurScene); if(!s)return; if(!s.commands)s.commands=[];
   host.innerHTML=""; host.appendChild(buildSeq(s.commands)); applyFlash();
 }
-function mkMini(label,disabled){ const b=document.createElement('button'); b.className='mini'; b.textContent=label; if(disabled)b.disabled=true; return b; }
+function mkMini(label){ const b=document.createElement('button'); b.className='mini'; b.textContent=label; return b; }
 function buildAddBar(list){
   const bar=document.createElement('div'); bar.className='sc-addbar';
   const lbl=document.createElement('span'); lbl.className='muted'; lbl.style.fontSize='12px'; lbl.textContent='追加:'; bar.appendChild(lbl);
@@ -1589,20 +1903,20 @@ function buildAddBar(list){
 }
 function buildSeq(cmds){
   const wrap=document.createElement('div'); wrap.className='sc-seq';
-  cmds.forEach((c,i)=> wrap.appendChild(buildCmdRow(c,cmds,i)));
+  cmds.forEach(c=> wrap.appendChild(buildCmdRow(c,cmds)));
   wrap.appendChild(buildAddBar(cmds));
+  bindCardDrag(wrap, ids=>{ reorderById(cmds, ids); save(); });
   return wrap;
 }
-function buildCmdRow(cmd, list, i){
-  const row=document.createElement('div'); row.className='sc-cmd'; row.dataset.id=cmd.id;
+function buildCmdRow(cmd, list){
+  const row=document.createElement('div'); row.className='sc-cmd';
   const body=document.createElement('div'); body.className='sc-cmd-body'; body.innerHTML=cmdSummary(cmd);
   const ord=document.createElement('div'); ord.className='sc-cmd-ord';
-  const up=mkMini('▲', i===0); up.onclick=()=>{ [list[i-1],list[i]]=[list[i],list[i-1]]; save(); renderCmdList(); };
-  const dn=mkMini('▼', i===list.length-1); dn.onclick=()=>{ [list[i+1],list[i]]=[list[i],list[i+1]]; save(); renderCmdList(); };
-  const ed=mkMini('編集',false); ed.onclick=()=>editCommand(cmd.id,null,list);
-  ord.append(up,dn,ed); row.append(body,ord);
+  const ed=mkMini('編集'); ed.onclick=()=>editCommand(cmd.id,null,list);
+  ord.innerHTML=gripHtml(); ord.append(ed); row.append(body,ord);
+  if(cmd.type!=='choice' && cmd.type!=='if') row.dataset.id=cmd.id;   // 入れ子は group 側が単位
   if(cmd.type==='choice'){
-    const group=document.createElement('div'); group.className='sc-choice-group'; group.appendChild(row);
+    const group=document.createElement('div'); group.className='sc-choice-group'; group.dataset.id=cmd.id; group.appendChild(row);
     const nest=document.createElement('div'); nest.className='sc-nest';
     (cmd.options||[]).forEach(opt=>{
       const oh=document.createElement('div'); oh.className='sc-opt-head';
@@ -1613,7 +1927,7 @@ function buildCmdRow(cmd, list, i){
     group.appendChild(nest); return group;
   }
   if(cmd.type==='if'){
-    const group=document.createElement('div'); group.className='sc-choice-group'; group.appendChild(row);
+    const group=document.createElement('div'); group.className='sc-choice-group'; group.dataset.id=cmd.id; group.appendChild(row);
     const nest=document.createElement('div'); nest.className='sc-nest';
     const h1=document.createElement('div'); h1.className='sc-opt-head'; h1.textContent='満たすとき'; nest.appendChild(h1);
     if(!cmd.then)cmd.then=[]; nest.appendChild(buildSeq(cmd.then));
@@ -1624,9 +1938,11 @@ function buildCmdRow(cmd, list, i){
   return row;
 }
 function addScene(){ if(!guardAdd('scenes', scenario().scenes.length)) return; const s={id:uid(),title:`シーン${scenario().scenes.length+1}`,commands:[]}; scenario().scenes.push(s); _scCurScene=s.id; _flashId=s.id; save(); renderView(); setTimeout(()=>document.getElementById("scTitle")?.focus(),0); }
-function moveScene(id,dir){ const a=scenario().scenes;const i=a.findIndex(s=>s.id===id);const j=i+dir;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];save();renderSceneList(); }
-function deleteScene(id){ const s=scenario().scenes.find(x=>x.id===id);if(!s)return; if(!confirm(`シーン「${s.title||'無題'}」を削除します。よろしいですか？`))return; scenario().scenes=scenario().scenes.filter(x=>x.id!==id); if(_scCurScene===id)_scCurScene=scenario().scenes[0]?.id||null; save(); renderView(); }
-function commitCmd(cmd,isNew,list){ if(isNew){ list.push(cmd); _flashId=cmd.id; } save(); closeModal(); renderCmdList(); renderSceneList(); }
+async function deleteScene(id){ const s=scenario().scenes.find(x=>x.id===id);if(!s)return;
+  if(!await confirmDialog("シーンを削除", `シーン「<b>${esc(s.title||"無題")}</b>」を削除します。<br><span class="muted">中のコマンドもまとめて消えます。元に戻せません。</span>`))return;
+  withShatter(id, ()=>{ scenario().scenes=scenario().scenes.filter(x=>x.id!==id);
+    if(_scCurScene===id)_scCurScene=scenario().scenes[0]?.id||null; save(); renderView(); }); }
+function commitCmd(cmd,isNew,list){ if(isNew) list.push(cmd); flashSaved(cmd.id, isNew); save(); closeModal(); renderCmdList(); renderSceneList(); }
 function editCommand(id, type, list){
   const isNew=!id;
   const cmd = isNew? {id:uid(), type, ...defaultCmd(type)} : list.find(c=>c.id===id);
@@ -1681,7 +1997,7 @@ function editCommand(id, type, list){
             : `<div class="field-row"><div style="flex:1"><label>操作</label><select id="cmOp"><option value="set" ${cmd.op==='set'?'selected':''}>= にする</option><option value="add" ${cmd.op==='add'?'selected':''}>+= 足す</option><option value="sub" ${cmd.op==='sub'?'selected':''}>-= 引く</option></select></div><div style="flex:1"><label>値</label><input id="cmVal" type="number" value="${cmd.value??0}"></div></div>`;
         };
         const vsel=root.querySelector("#cmVar"); if(vsel){ drawDyn(); vsel.onchange=drawDyn; }
-        root.querySelector("#cmSave").onclick=()=>{ const sel=root.querySelector("#cmVar"); if(!sel){alert("先に変数を作成してください");return;}
+        root.querySelector("#cmSave").onclick=()=>{ const sel=root.querySelector("#cmVar"); if(!sel){toast("先に変数を作成してください","err");return;}
           cmd.varId=sel.value; const v=varById(cmd.varId); const op=root.querySelector("#cmOp"); cmd.op=op?op.value:(v&&v.type==='flag'?'on':'set');
           const val=root.querySelector("#cmVal"); cmd.value=val?(parseFloat(val.value)||0):0; commitCmd(cmd,isNew,list); };
       } else if(cmd.type==='if'){
@@ -1692,7 +2008,7 @@ function editCommand(id, type, list){
             : `<div class="field-row"><div style="flex:1"><label>比較</label><select id="cmCmp"><option value="ge" ${cmd.cmp==='ge'?'selected':''}>≥ 以上</option><option value="le" ${cmd.cmp==='le'?'selected':''}>≤ 以下</option><option value="eq" ${cmd.cmp==='eq'?'selected':''}>= 等しい</option><option value="gt" ${cmd.cmp==='gt'?'selected':''}>＞ より大</option><option value="lt" ${cmd.cmp==='lt'?'selected':''}>＜ より小</option></select></div><div style="flex:1"><label>値</label><input id="cmVal" type="number" value="${cmd.value??0}"></div></div>`;
         };
         const vsel=root.querySelector("#cmVar"); if(vsel){ drawDyn(); vsel.onchange=drawDyn; }
-        root.querySelector("#cmSave").onclick=()=>{ const sel=root.querySelector("#cmVar"); if(!sel){alert("先に変数を作成してください");return;}
+        root.querySelector("#cmSave").onclick=()=>{ const sel=root.querySelector("#cmVar"); if(!sel){toast("先に変数を作成してください","err");return;}
           cmd.varId=sel.value; const v=varById(cmd.varId); const cmp=root.querySelector("#cmCmp"); cmd.cmp=cmp?cmp.value:(v&&v.type==='flag'?'on':'ge');
           const val=root.querySelector("#cmVal"); cmd.value=val?(parseFloat(val.value)||0):0; commitCmd(cmd,isNew,list); };
       } else {
@@ -1704,7 +2020,11 @@ function editCommand(id, type, list){
           commitCmd(cmd,isNew,list);
         };
       }
-      const del=root.querySelector("#cmDel"); if(del) del.onclick=()=>{ const idx=list.indexOf(cmd); if(idx>=0) list.splice(idx,1); save(); closeModal(); renderCmdList(); renderSceneList(); };
+      const del=root.querySelector("#cmDel"); if(del) del.onclick=async ()=>{
+        if(!await confirmDialog("この行を削除", `この行を削除します。<br><span class="muted">元に戻せません。</span>`)) return;
+        closeModal();
+        withShatter(cmd.id, ()=>{ const idx=list.indexOf(cmd); if(idx>=0) list.splice(idx,1);
+          save(); renderCmdList(); renderSceneList(); }); };
     });
 }
 function openVars(){
@@ -1781,15 +2101,11 @@ function renderMemos(main){
     ${tagFilterBarHtml()}<div class="memo-list" id="memoList"></div>`;
   document.getElementById("memoAdd").onclick=addMemo;
   const host=document.getElementById("memoList"); if(!host) return;
-  host.innerHTML=list.map((m,i)=>`
+  host.innerHTML=list.map(m=>`
     <div class="memo-card" data-id="${m.id}">
       <div class="memo-top">
         <input class="memo-title" value="${esc(m.title||'')}" placeholder="タイトル（任意）">
-        <div class="memo-ord">
-          <button class="mini up" ${i===0?'disabled':''}>▲</button>
-          <button class="mini down" ${i===list.length-1?'disabled':''}>▼</button>
-          <button class="btn icon subtle memo-menu" title="その他">⋯</button>
-        </div>
+        <div class="memo-ord">${gripHtml()}<button class="btn icon subtle memo-menu" title="その他">⋯</button></div>
       </div>
       <textarea class="memo-body" placeholder="アイデア・メモを自由に…">${esc(m.body||'')}</textarea>
       <input class="memo-tags" value="${esc((m.tags||[]).join(', '))}" placeholder="タグ（カンマ区切り）">
@@ -1800,15 +2116,15 @@ function renderMemos(main){
     el.querySelector(".memo-title").oninput=e=>{ m.title=e.target.value; saveLocal(); queueSync(state.currentId); };
     el.querySelector(".memo-body").oninput=e=>{ m.body=e.target.value; saveLocal(); queueSync(state.currentId); };
     el.querySelector(".memo-tags").oninput=e=>{ m.tags=parseTags(e.target.value); saveLocal(); queueSync(state.currentId); };
-    el.querySelector(".up").onclick=()=>moveMemo(id,-1);
-    el.querySelector(".down").onclick=()=>moveMemo(id,1);
     el.querySelector(".memo-menu").onclick=()=>openDeleteMenu("メモの操作","このメモを削除",()=>deleteMemo(id));
   });
+  bindCardDrag(host, ids=>{ reorderById(memos(), ids); save(); });
   wireTags(main);
 }
 function addMemo(){ if(!guardAdd('memos', memos().length)) return; const m={id:uid(),title:"",body:"",tags:[]}; memos().unshift(m); _flashId=m.id; save(); renderView(); setTimeout(()=>document.querySelector('.memo-card[data-id="'+m.id+'"] .memo-body')?.focus(),0); }
-function moveMemo(id,dir){ const a=memos();const i=a.findIndex(m=>m.id===id);const j=i+dir;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];save();renderView(); }
-function deleteMemo(id){ const m=memos().find(x=>x.id===id); if(!m)return; if(!confirm("このメモを削除します。よろしいですか？"))return; cur().memos=memos().filter(x=>x.id!==id); save(); renderView(); }
+async function deleteMemo(id){ const m=memos().find(x=>x.id===id); if(!m)return;
+  if(!await confirmDialog("メモを削除", `${m.title?`「<b>${esc(m.title)}</b>」を`:"このメモを"}削除します。<br><span class="muted">元に戻せません。</span>`))return;
+  withShatter(id, ()=>{ cur().memos=memos().filter(x=>x.id!==id); save(); renderView(); }); }
 
 // ============================ モーダル ============================
 function openModal(html, onReady, opts){
@@ -1821,6 +2137,60 @@ function openModal(html, onReady, opts){
   const f=host.querySelector("input,textarea,select"); if(f) f.focus();
 }
 function closeModal(){ document.getElementById("overlayHost").innerHTML=""; }
+// 短い通知（トースト）＝ブラウザのalertの置き換え。モーダルを開いたままでも出せる。
+// kind:"err" で赤系。クリック or 数秒で自動的に消える。読ませたい長文は noticeModal を使う。
+function toast(msg, kind){
+  const s = String(msg==null ? "" : msg);
+  let host = document.getElementById("toastHost");
+  if(!host){ host=document.createElement("div"); host.id="toastHost"; document.body.appendChild(host); }
+  const t = document.createElement("div");
+  t.className = "toast" + (kind==="err" ? " err" : "");
+  t.setAttribute("role", kind==="err" ? "alert" : "status");
+  t.textContent = s;
+  host.appendChild(t);
+  while(host.children.length > 3) host.firstChild.remove();   // 溜まりすぎ防止（古いものから消す）
+  let gone=false;
+  const bye=()=>{ if(gone) return; gone=true;
+    if(prefersReduced()){ t.remove(); return; }
+    const a=t.animate([{opacity:1},{opacity:0,transform:"translateY(6px)"}],{duration:170,easing:"ease-in",fill:"forwards"});
+    a.onfinish=()=>t.remove(); };
+  t.onclick=bye;
+  setTimeout(bye, Math.min(7000, 2500 + s.length*50));   // 長い文ほど長めに出す
+  if(!prefersReduced()) t.animate([{opacity:0,transform:"translateY(8px)"},{opacity:1,transform:"none"}],
+    {duration:170,easing:"cubic-bezier(.2,.7,.3,1)"});
+  return t;
+}
+// 例外などの生テキストを noticeModal の本文HTMLにする（エスケープ＋改行を<br>へ）
+function escBr(s){ return esc(String(s==null ? "" : s)).replace(/\n/g,"<br>"); }
+// 確認ダイアログ（ブラウザのconfirmの置き換え）。await すると true / false が返る。
+// openModal とは別の重ね用ホストに出すので、編集モーダルを開いたまま確認できる。
+// → キャンセルすると元の編集モーダルがそのまま残る（確認を挟んでも編集中の内容を失わない）
+// 外クリック・Esc もキャンセル扱いで false。
+function confirmDialog(title, msgHtml, okLabel, kind){
+  return new Promise(resolve=>{
+    let host=document.getElementById("confirmHost");
+    if(!host){ host=document.createElement("div"); host.id="confirmHost"; document.body.appendChild(host); }
+    host.innerHTML=`<div class="overlay overlay-2"><div class="modal" style="max-width:430px">
+      <h3>${esc(title)}</h3>
+      <p class="modal-msg">${msgHtml}</p>
+      <div class="modal-actions">
+        <button class="btn" id="cfNo">キャンセル</button>
+        <button class="btn ${kind==="plain"?"primary":"danger"}" id="cfYes">${esc(okLabel||"削除する")}</button>
+      </div></div></div>`;
+    let done=false;
+    const finish=(v)=>{ if(done) return; done=true;
+      document.removeEventListener("keydown", onKey, true);
+      host.innerHTML="";
+      resolve(!!v); };
+    const onKey=(e)=>{ if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); finish(false); } };
+    const ov=host.querySelector(".overlay");
+    ov.addEventListener("click", e=>{ if(e.target===ov) finish(false); });
+    host.querySelector("#cfYes").onclick=()=>finish(true);
+    host.querySelector("#cfNo").onclick=()=>finish(false);
+    document.addEventListener("keydown", onKey, true);
+    setTimeout(()=>{ const b=document.getElementById("cfYes"); if(b) b.focus(); }, 0);
+  });
+}
 // ---- 検索（この作品内を横断検索） ----
 function searchProject(q){
   q=(q||"").trim().toLowerCase(); const d=cur(); if(!q||!d) return [];
@@ -1851,7 +2221,7 @@ function jumpToResult(r){
   else if(r.type==='memo'){ _flashId=r.id; setTab('memo'); }
 }
 function openSearch(){
-  if(!curProject()){ alert("先に作品を作成してください"); return; }
+  if(!curProject()){ toast("先に作品を作成してください","err"); return; }
   openModal(`<div class="menu-head"><span class="menu-title">検索（この作品内）</span><button class="menu-x" data-close title="閉じる">✕</button></div>
     <div class="field"><input id="srchInput" placeholder="キャラ・世界観・本文・メモなどを検索…" autocomplete="off"></div>
     <div class="srch-results" id="srchResults"><div class="muted" style="font-size:13px;padding:6px 2px">キーワードを入力してください。</div></div>`,
@@ -1882,34 +2252,38 @@ function openMenu(){
   if(fbUser){
     const dn=acctName();
     avatar=`<div class="menu-avatar">${esc((dn.trim()[0]||'U').toUpperCase())}</div>`;
-    name=esc(dn); sub=`<span class="sync-dot"></span>${fbSupporter?"支援者・クラウド同期":"クラウド同期"}`;
+    const mst=syncStateNow();
+    name=esc(dn); sub=syncDotHtml(mst)+(fbSupporter?"支援者・":"")+esc(syncText(mst));
     action=`<button class="btn" id="mLogout">ログアウト</button>`;
   }else if(fbAuth){
     avatar=`<div class="menu-avatar guest">${GUEST_ICON}</div>`;
-    name="ゲスト"; sub="この端末に保存（体験版）";
+    name="ゲスト"; sub="体験版・この端末に保存";
     action=`<button class="btn primary" id="mLogin">Discordでログイン</button>`;
   }else{
     avatar=`<div class="menu-avatar guest">${GUEST_ICON}</div>`;
     name="ローカルモード"; sub="この端末に保存";
   }
+  // ok=false なら灰色＋disabled＋「支援者」バッジ。disabled なので click は飛ばない（別途ガード不要）
+  const gate=(ok,id,label)=>`<button class="menu-item${ok?"":" locked"}" id="${id}" ${ok?"":"disabled"}>${label}${ok?"":`<span class="lock-badge">支援者</span>`}</button>`;
   openModal(`
     <div class="menu-head"><span class="menu-title">アカウント</span><button class="menu-x" data-close title="閉じる">✕</button></div>
     <div class="menu-acct">${avatar}
       <div class="menu-acct-txt"><div class="menu-acct-name">${name}</div><div class="menu-acct-sub">${sub}</div></div>
       ${action}</div>
     <div class="menu-sep"></div>
-    <button class="menu-item" id="mNewProj">＋ 作品を追加</button>
-    <button class="menu-item" id="mImport">作品をインポート</button>
+    ${gate(canAddProject(), "mNewProj", "＋ 作品を追加")}
+    ${gate(isFull(), "mImport", "作品をインポート")}
     ${p?`<div class="menu-sep"></div>
       <div class="menu-label">作品設定</div>
       <button class="menu-item" id="mRename">作品名を変更</button>
-      <button class="menu-item" id="mExport">この作品をエクスポート</button>
+      ${gate(isFull(), "mExport", "この作品をエクスポート")}
       ${(p.encrypted&&_keyStrs[p.id])?`<button class="menu-item" id="mShowKey">復元キーを表示</button>`:""}
+      ${gate(!!fbUser, "mShare", p.shared?"共同編集を管理":"共同編集を始める")}
       <div class="menu-sep"></div>
       <div class="menu-label">表示するタブ（この作品）</div>
       ${TABS.map(([v,label])=>`<label class="menu-tog"><span>${label}</span><span class="sw"><input type="checkbox" data-tab="${v}" ${isTabVisible(v)?"checked":""}><span></span></span></label>`).join("")}
       <div class="menu-sep"></div>
-      <button class="menu-del" id="mDelProj">この作品を削除</button>`:""}`,
+      <button class="menu-del danger" id="mDelProj">この作品を削除</button>`:""}`,
     (root)=>{
       const lb=root.querySelector("#mLogin"); if(lb) lb.onclick=()=>{ closeModal(); loginDiscord(); };
       const lo=root.querySelector("#mLogout"); if(lo) lo.onclick=()=>{ closeModal(); logout(); };
@@ -1918,32 +2292,74 @@ function openMenu(){
       if(p){
         root.querySelector("#mExport").onclick=()=>{ closeModal(); exportProject(p); };
         const sk=root.querySelector("#mShowKey"); if(sk) sk.onclick=()=>{ closeModal(); showStoredKey(p); };
+        root.querySelector("#mShare").onclick=()=>{ if(p.shared){ openShareManage(p); } else { closeModal(); shareProject(p); } };
         root.querySelector("#mRename").onclick=()=>openRenameProject(p);
-        root.querySelector("#mDelProj").onclick=()=>{
-          if(!confirm(`作品「${p.title}」を削除します。元に戻せません。よろしいですか？`)) return;
-          const delId=p.id;
-          delete state.data[p.id]; state.projects=state.projects.filter(x=>x.id!==p.id);
-          state.currentId=state.projects[0]?.id||null; save(); deleteRemote(delId); closeModal(); renderAll();
-        };
+        root.querySelector("#mDelProj").onclick=()=>openDeleteProject(p);
       }
       // 表示: タブの表示/非表示トグル（作品ごと・data.tabVisに保存。最低1つは残す）
       root.querySelectorAll('input[data-tab]').forEach(cb=>cb.onchange=()=>{
         const v=cb.dataset.tab; const d=cur(); if(!d) return;
         if(!d.tabVis) d.tabVis={};
         if(!cb.checked){
-          if(TABS.filter(([k])=>isTabVisible(k)).length<=1){ cb.checked=true; alert("最低1つはタブを表示してください"); return; }
+          if(TABS.filter(([k])=>isTabVisible(k)).length<=1){ cb.checked=true; toast("最低1つはタブを表示してください","err"); return; }
           d.tabVis[v]=false;
         } else { delete d.tabVis[v]; }
         save(); applyTabVis(); renderView();
       });
     });
 }
+// 作品の削除：ブラウザのconfirmではなく自前のダイアログ。取り違え防止に作品名の入力を求める
+function openDeleteProject(p){
+  if(p.shared && fbUser && p.ownerUid!==fbUser.uid){
+    noticeModal("共有作品です", "この作品はほかの人のものです。自分の端末から外すには<b>「共同編集を管理」→「この作品から抜ける」</b>を使ってください。");
+    return;
+  }
+  const title = p.title || "";
+  const sharedOwner = p.shared && fbUser && p.ownerUid===fbUser.uid;
+  openModal(`<h3>作品を削除</h3>
+    <p class="modal-msg gap">作品「<b>${esc(title)}</b>」を削除します。
+      キャラクター・原稿・プロットなど<b>この作品の中身もすべて消えます</b>。<br>
+      <span class="muted">元に戻せません。${sharedOwner?"共有中のため、協力者全員からも消えます。":""}${p.encrypted?"暗号化作品のため、復元キーがあっても戻せません。":""}</span></p>
+    <div class="field"><label>確認のため作品名を入力してください</label>
+      <input id="delName" placeholder="${esc(title)}" autocomplete="off" spellcheck="false"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close>キャンセル</button>
+      <button class="btn danger" id="delGo" disabled>削除する</button>
+    </div>`, (root)=>{
+      const inp=root.querySelector("#delName"), go=root.querySelector("#delGo");
+      const match=()=>inp.value.trim()===title.trim();
+      inp.addEventListener("input", ()=>{ go.disabled=!match(); });
+      inp.addEventListener("keydown", e=>{ if(e.key==="Enter" && match()) deleteProjectNow(p); });
+      go.onclick=()=>{ if(match()) deleteProjectNow(p); };
+      setTimeout(()=>inp.focus(), 0);
+    });
+}
+// この端末から作品を取り除く（ロック中データの消し忘れ防止に1か所へ）
+function forgetProject(id){
+  delete state.data[id]; delete _locked[id];
+  state.projects = state.projects.filter(x=>x.id!==id);
+  state.currentId = state.projects[0]?.id || null;
+}
+function deleteProjectNow(p){
+  const delId=p.id;
+  // 削除先はログイン時だけ必要（未ログインで projectsCol() を呼ぶと fbUser が null で落ちる）
+  const ref = (fbUser && fbDb) ? (p.shared ? worksCol().doc(delId) : projectsCol().doc(delId)) : null;
+  forgetProject(delId);
+  save(); if(ref) deleteRemote(delId, ref);
+  closeModal(); renderAll();
+}
+// 単純なお知らせ（alertの置き換え）
+function noticeModal(title, msgHtml){
+  openModal(`<h3>${esc(title)}</h3>
+    <p class="modal-msg">${msgHtml}</p>
+    <div class="modal-actions"><button class="btn primary" data-close>閉じる</button></div>`);
+}
 function openRenameProject(p){
   openModal(`<h3>作品名を変更</h3>
     <div class="field"><label>タイトル</label><input id="rnTitle" value="${esc(p.title)}" placeholder="作品名"></div>
     <div class="modal-actions"><button class="btn" data-close>キャンセル</button><button class="btn primary" id="rnSave">保存</button></div>`,
     (root)=>{
-      const doSave=()=>{ const t=root.querySelector("#rnTitle").value.trim(); if(!t){ alert("タイトルを入力してください"); return; }
+      const doSave=()=>{ const t=root.querySelector("#rnTitle").value.trim(); if(!t){ toast("タイトルを入力してください","err"); return; }
         p.title=t; save(); closeModal(); renderAll(); };
       root.querySelector("#rnSave").onclick=doSave;
       root.querySelector("#rnTitle").addEventListener("keydown",e=>{ if(e.key==="Enter") doSave(); });
@@ -1954,7 +2370,8 @@ function buildProjectExport(p){
   return JSON.stringify({ app:"fabula", type:"project", version:1, exportedAt:new Date().toISOString(), title:p.title, data:state.data[p.id] }, null, 2);
 }
 function exportProject(p){
-  if(!p || !state.data[p.id]){ alert("エクスポートする作品がありません"); return; }
+  if(!isFull()) return;   // エクスポートは支援者限定
+  if(!p || !state.data[p.id]){ toast("エクスポートする作品がありません","err"); return; }
   const blob=new Blob([buildProjectExport(p)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
@@ -1962,6 +2379,109 @@ function exportProject(p){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+
+// ============================ 共有 / 共同編集 ============================
+// 共有リンク（暗号化作品は復号鍵を # 以降に載せる＝サーバー非送信）
+function shareLink(p){
+  let url = location.origin + "/#join=" + encodeURIComponent(p.id);
+  if(p.encrypted && _keyStrs[p.id]) url += "&k=" + encodeURIComponent(_keyStrs[p.id]);
+  return url;
+}
+// この作品を共有化（works/{id} へ移動＋所有権付与）→ 共有リンクを表示
+async function shareProject(p){
+  if(!fbUser){ noticeModal("ログインが必要です", '共同編集はクラウド保存を使うため、ログインが必要です。<br><span class="muted">☰メニューから「Discordでログイン」してください。</span>'); return; }
+  if(p.encrypted){ const key=await getKey(p.id); if(!key){ noticeModal("ロック中です", 'この作品は暗号化されています。<br><span class="muted">先にロックを解除してから共有してください。</span>'); return; } }
+  const prev = { shared:p.shared, ownerUid:p.ownerUid, members:p.members, inviteOpen:p.inviteOpen };
+  p.shared=true; p.ownerUid=fbUser.uid; p.members=[fbUser.uid]; p.inviteOpen=true;
+  try{
+    const doc = await cloudDoc(p.id); if(!doc) throw new Error("作品データを準備できません");
+    await worksCol().doc(p.id).set(doc);
+    await pushChapters(p.id, chapCol(p.id));
+    await deleteRemote(p.id, projectsCol().doc(p.id));   // 旧・非共有コピーを削除
+    saveLocal(); startLiveSync(); renderProjectBar();
+    openShareManage(p);
+  }catch(e){
+    Object.assign(p, prev); saveLocal();   // 失敗したら非共有へ戻す（半端な共有状態を残さない）
+    noticeModal("共有を開始できませんでした", escBr(e.message||e) + '<br><span class="muted">Firestoreルールのデプロイがまだの可能性があります。</span>');
+  }
+}
+// 共有をやめて非公開(private)へ戻す（owner のみ）
+async function unshareProject(p){
+  if(!fbUser || p.ownerUid!==fbUser.uid) return;
+  if(!await confirmDialog("共有をやめる", "この作品を非公開（自分だけ）に戻します。<br><span class=\"muted\">協力者はアクセスできなくなります。</span>", "共有をやめる")) return;
+  try{
+    const doc = await cloudDoc(p.id);
+    if(doc){ delete doc.ownerUid; delete doc.members; delete doc.inviteOpen;   // 共有用の3項目を落とせば非共有の形になる
+      const pref=projectsCol().doc(p.id);
+      await pref.set(doc);
+      await pushChapters(p.id, pref.collection("chapters"));
+    }
+    await deleteRemote(p.id, worksCol().doc(p.id));        // works 側を削除
+    p.shared=false; p.ownerUid=null; p.members=null; p.inviteOpen=true;
+    stopLiveSync(); saveLocal(); closeModal(); renderAll();
+  }catch(e){ noticeModal("共有解除に失敗しました", escBr(e.message||e)); }
+}
+// 共有作品から抜ける（member）
+async function leaveProject(p){
+  if(!fbUser) return;
+  if(!await confirmDialog("共有作品から抜ける", "この作品から抜けます。<br><span class=\"muted\">自分の端末からも消えます。オーナーが共有している限り、リンクから入り直せます。</span>", "抜ける")) return;
+  try{ await worksCol().doc(p.id).update({ members:(p.members||[]).filter(x=>x!==fbUser.uid) }); }catch(e){ console.warn("[Fabula] 退出失敗:", e); }
+  stopLiveSync();
+  forgetProject(p.id);
+  saveLocal(); closeModal(); renderAll();
+}
+async function removeMember(p, uid){
+  if(!fbUser || p.ownerUid!==fbUser.uid || uid===p.ownerUid) return;
+  const next=(p.members||[]).filter(x=>x!==uid);
+  try{ await worksCol().doc(p.id).update({ members: next }); p.members=next; saveLocal(); openShareManage(p); }
+  catch(e){ toast("メンバー削除に失敗しました: "+(e.message||e), "err"); }
+}
+async function toggleInvite(p){
+  if(!fbUser || p.ownerUid!==fbUser.uid) return;
+  const next = !(p.inviteOpen!==false);
+  try{ await worksCol().doc(p.id).update({ inviteOpen: next }); p.inviteOpen=next; saveLocal(); openShareManage(p); }
+  catch(e){ toast("切替に失敗しました: "+(e.message||e), "err"); }
+}
+function openShareManage(p){
+  const isOwner = fbUser && p.ownerUid===fbUser.uid;
+  const link = shareLink(p);
+  const encNote = p.encrypted ? `<p class="muted" style="font-size:12px;line-height:1.7;margin:6px 0 2px">暗号化作品です。<b>リンクに復号鍵が含まれます</b>（サーバーには送られません）。リンクを渡した相手は内容を読めます。信頼できる相手にだけ共有してください。</p>` : "";
+  const linkField = `<div class="field"><label>共有リンク</label>
+    <div style="display:flex;gap:6px"><input id="shLink" readonly value="${esc(link)}" style="flex:1"><button class="btn" id="shCopy">コピー</button></div></div>${encNote}`;
+  let body;
+  if(isOwner){
+    const open = p.inviteOpen!==false;
+    const members = p.members||[];
+    const list = members.map(uid=>{
+      const owner=uid===p.ownerUid, me=uid===fbUser.uid;
+      const label = owner ? "オーナー（あなた）" : (me ? "あなた" : ("メンバー …"+uid.slice(-6)));
+      const rm = owner ? "" : `<button class="btn subtle" data-rm="${esc(uid)}" style="padding:2px 10px;font-size:12px">削除</button>`;
+      return `<div class="share-mem"><span>${esc(label)}</span>${rm}</div>`;
+    }).join("");
+    body = `<div class="menu-head"><span class="menu-title">共有を管理</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+      ${linkField}
+      <label class="menu-tog"><span>新しい参加を受け付ける</span><span class="sw"><input type="checkbox" id="shInvite" ${open?"checked":""}><span></span></span></label>
+      <div class="muted" style="font-size:12px;margin:-2px 0 10px">オフにすると以後このリンクからの新規参加を止めます（既存メンバーはそのまま）。</div>
+      <div class="menu-label">メンバー（${members.length}）</div>
+      <div class="share-mems">${list}</div>
+      <div class="menu-sep"></div>
+      <button class="menu-del" id="shUnshare">共有をやめる（非公開に戻す）</button>`;
+  } else {
+    body = `<div class="menu-head"><span class="menu-title">共同編集</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+      <p style="font-size:14px;margin:2px 0 10px">この作品は共同編集中です。変更はほぼリアルタイムで共有されます（同じ章を同時に編集すると後の保存が優先）。</p>
+      ${linkField}
+      <div class="menu-sep"></div>
+      <button class="menu-del" id="shLeave">この作品から抜ける</button>`;
+  }
+  openModal(body, (root)=>{
+    const copy=root.querySelector("#shCopy"); if(copy) copy.onclick=()=>{ try{ navigator.clipboard.writeText(link); copy.textContent="コピー済み"; }catch(e){ const t=root.querySelector("#shLink"); t.focus(); t.select(); } };
+    const inv=root.querySelector("#shInvite"); if(inv) inv.onchange=()=>toggleInvite(p);
+    const un=root.querySelector("#shUnshare"); if(un) un.onclick=()=>unshareProject(p);
+    const lv=root.querySelector("#shLeave"); if(lv) lv.onclick=()=>leaveProject(p);
+    root.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>removeMember(p, b.dataset.rm));
+  });
+}
+
 // インポート用の正規化：空テンプレに重ねて、無い項目はデフォルト補完・未知の項目は無視・型違いは既定へ。
 // → 将来フィールドが増えても古いファイルを読み込める（構造を大きく変える時は version を見て変換を足す）。
 function normalizeProjectData(data){
@@ -1976,22 +2496,25 @@ function normalizeProjectData(data){
   if(data.scenario && typeof data.scenario==="object")
     out.scenario={ scenes:Array.isArray(data.scenario.scenes)?data.scenario.scenes:[], vars:Array.isArray(data.scenario.vars)?data.scenario.vars:[] };
   if(data.tabVis && typeof data.tabVis==="object") out.tabVis=data.tabVis;   // タブ表示設定も引き継ぐ
+  if(Array.isArray(data.charTemplate)) out.charTemplate=data.charTemplate;   // キャラ項目テンプレートも引き継ぐ
   return out;
 }
 function importProject(){
+  if(!isFull()) return;   // インポートは支援者限定
   const inp=document.createElement("input");
   inp.type="file"; inp.accept=".json,application/json";
   inp.onchange=()=>{
     const f=inp.files && inp.files[0]; if(!f) return;
     const r=new FileReader();
-    r.onload=()=>{
-      let obj; try{ obj=JSON.parse(r.result); }catch(e){ alert("ファイルを読み取れませんでした（JSON形式ではないかもしれません）"); return; }
-      if(obj && obj.app && obj.app!=="fabula"){ if(!confirm("Fabula以外のファイルの可能性があります。読み込みますか？")) return; }
+    r.onload=async ()=>{
+      let obj; try{ obj=JSON.parse(r.result); }catch(e){ noticeModal("読み込めません", "ファイルを読み取れませんでした。JSON形式ではないかもしれません。"); return; }
+      if(obj && obj.app && obj.app!=="fabula"){
+        if(!await confirmDialog("読み込みますか？", "Fabula以外のファイルの可能性があります。<br><span class=\"muted\">内容が正しく読み込めないことがあります。</span>", "読み込む", "plain")) return; }
       if(!guardAdd('projects', state.projects.length)) return;   // 体験版の作品数制限
       const data=normalizeProjectData(obj && obj.data ? obj.data : obj);
       const title=((obj && obj.title) ? String(obj.title) : "読み込んだ作品").slice(0,80) || "読み込んだ作品";
       createProject(title, data); _tagFilter=null; save(); renderAll(); animateMain();
-      alert(`「${title}」をインポートしました`);
+      toast(`「${title}」をインポートしました`);
     };
     r.readAsText(f);
   };
@@ -2023,13 +2546,14 @@ function initFirebase(){
     fbDb = firebase.firestore();
     try{ fbFunctions = firebase.app().functions("asia-northeast1"); }catch(e){ fbFunctions=null; }
     fbAuth.onAuthStateChanged(onAuthChanged);
+    handleJoinLink();          // #join=... を退避（ログイン後に処理）
     handleDiscordRedirect();   // ?code=... で戻ってきたら処理
   }catch(e){ console.warn("[Fabula] Firebase初期化失敗:", e); }
   updateAuthChip();
 }
 // Discordの認可画面へ送る（戻りは ?code=... でこのページに返る）
 function loginDiscord(){
-  if(!fbFunctions){ alert("ログインにはオンライン接続（localhost等での起動）が必要です"); return; }
+  if(!fbFunctions){ noticeModal("オンライン接続が必要です", 'ログインにはネットワーク接続が必要です。<br><span class="muted">ファイルを直接開いた状態（file://）では利用できません。</span>'); return; }
   location.href = "https://discord.com/api/oauth2/authorize?client_id="+DISCORD_CLIENT_ID
     + "&redirect_uri="+encodeURIComponent(DISCORD_REDIRECT_URI)
     + "&response_type=code&scope=identify";
@@ -2037,25 +2561,26 @@ function loginDiscord(){
 async function handleDiscordRedirect(){
   const params=new URLSearchParams(location.search);
   const code=params.get("code"), err=params.get("error");
-  if(err){ history.replaceState(null,"",location.pathname); alert("Discord認証がキャンセルされました"); return; }
+  if(err){ history.replaceState(null,"",location.pathname); toast("Discord認証がキャンセルされました"); return; }
   if(!code) return;
   history.replaceState(null,"",location.pathname);   // codeは単回使用なのですぐURLから消す
-  if(!fbFunctions){ alert("認証処理を実行できません（オンライン接続が必要）"); return; }
-  updateAuthChip("saving");
+  if(!fbFunctions){ noticeModal("認証処理を実行できません", "オンライン接続が必要です。"); return; }
+  _authBusy=true; updateAuthChip();
   try{
     const res = await fbFunctions.httpsCallable("discordAuth")({ code, redirectUri: DISCORD_REDIRECT_URI });
     fbName = res.data.name||""; try{ localStorage.setItem("fabula:name", fbName); }catch(e){}
     await fbAuth.signInWithCustomToken(res.data.token);   // 後処理は onAuthChanged
-  }catch(e){ updateAuthChip(); showLoginFail(e.message||e.code||String(e)); }
+  }catch(e){ showLoginFail(e.message||e.code||String(e)); }
+  finally{ _authBusy=false; updateAuthChip(); }
 }
 // Discordログイン失敗（支援者ロール無し・未参加 等）→ 理由を見せて、アクセスコードでの有効化へ誘導
 function showLoginFail(msg){
   openModal(`<h3>ログインできませんでした</h3>
-    <p style="font-size:14px;line-height:1.75;margin:2px 0 12px">${esc(msg)}<br>
+    <p class="modal-msg gap">${esc(msg)}<br>
       <span class="muted">支援者ロールが必要です。Discordサーバーでロールを受け取ってから、もう一度お試しください。</span></p>
     <div class="modal-actions"><button class="btn primary" data-close>閉じる</button></div>`);
 }
-function logout(){ if(fbAuth) fbAuth.signOut(); fbSupporter=false; fbName=""; try{ localStorage.removeItem("fabula:name"); }catch(e){} }
+function logout(){ stopLiveSync(); if(fbAuth) fbAuth.signOut(); fbSupporter=false; fbName=""; try{ localStorage.removeItem("fabula:name"); }catch(e){} }
 
 async function onAuthChanged(u){
   fbUser = u;
@@ -2065,7 +2590,9 @@ async function onAuthChanged(u){
   if(u){
     try{ await pullFromCloud(); }catch(e){ console.warn("[Fabula] クラウド取得失敗:", e); }
     renderAll();
-  }
+    startLiveSync();
+  } else { stopLiveSync(); }
+  await resolvePendingJoin();
 }
 
 // クラウド保存用ドキュメント（暗号化作品は enc に暗号文。鍵が無ければ null＝同期しない＝平文漏れ防止）
@@ -2076,9 +2603,12 @@ async function cloudDoc(id){
   const ms = data.manuscript || {chapters:[]};
   const slim = { ...data, manuscript:{ chapters:(ms.chapters||[]).map(c=>({id:c.id,title:c.title})) } };
   const base = { title:p.title, createdAt:p.createdAt||Date.now() };
+  let out;
   if(p.encrypted){ const key=await getKey(id); if(!key) return null;
-    return { ...base, encrypted:true, enc: await encObj(slim, key) }; }
-  return { ...base, data: slim };
+    out = { ...base, encrypted:true, enc: await encObj(slim, key) }; }
+  else out = { ...base, data: slim };
+  if(p.shared){ out.ownerUid = p.ownerUid || (fbUser&&fbUser.uid) || null; out.members = p.members || (fbUser?[fbUser.uid]:[]); out.inviteOpen = p.inviteOpen!==false; }
+  return out;
 }
 async function cloudChapter(id, ch){   // 章ドキュメント（暗号化作品は暗号文）
   const p = state.projects.find(x=>x.id===id);
@@ -2100,35 +2630,44 @@ async function decryptLocked(id, key){
   return data;
 }
 function projectsCol(){ return fbDb.collection("users").doc(fbUser.uid).collection("projects"); }
-function chaptersCol(pid){ return projectsCol().doc(pid).collection("chapters"); }
+function projForId(id){ return (state.projects||[]).find(x=>x.id===id); }
+// 保存先：共有作品は works/{id}、非共有は users/{uid}/projects/{id}（state.projects を外れた id は private 扱い）
+function worksCol(){ return fbDb.collection("works"); }
+function workRef(id){ const p=projForId(id); return (p&&p.shared) ? worksCol().doc(id) : projectsCol().doc(id); }
+function chapCol(id){ return workRef(id).collection("chapters"); }
 
 async function pullFromCloud(){
   if(!fbUser||!fbDb) return;
-  const snap = await projectsCol().get();
-  const remote = {};
-  snap.forEach(d=> remote[d.id]=d.data());
-  // 初回ログイン: この端末にしか無い作品はクラウドへ退避（本体＋各章）
+  const remote = {};   // id -> doc data（＋ _shared フラグ）
+  // 自分の非共有作品
+  const privSnap = await projectsCol().get();
+  privSnap.forEach(d=> remote[d.id]={ ...d.data(), _shared:false });
+  // 自分がメンバーの共有作品
+  try{
+    const shareSnap = await worksCol().where("members","array-contains",fbUser.uid).get();
+    shareSnap.forEach(d=> remote[d.id]={ ...d.data(), _shared:true });
+  }catch(e){ console.warn("[Fabula] 共有作品取得失敗:", e); }
+  // 初回ログイン: この端末にしか無い「非共有」作品はクラウドへ退避（本体＋各章）
   for(const p of [...state.projects]){
-    if(!remote[p.id]){
+    if(!remote[p.id] && !p.shared){
       const doc = await cloudDoc(p.id); if(!doc) continue;   // 鍵なし暗号化作品は退避しない
-      await projectsCol().doc(p.id).set(doc);
-      for(const ch of (state.data[p.id]?.manuscript?.chapters||[])){
-        const cp=await cloudChapter(p.id, ch); if(cp) await chaptersCol(p.id).doc(ch.id).set(cp);
-      }
-      remote[p.id] = doc;
+      await workRef(p.id).set(doc);
+      await pushChapters(p.id, chapCol(p.id));
+      remote[p.id] = { ...doc, _shared:false };
     }
   }
   // クラウドの内容で state を作り直す（暗号化作品は鍵があれば復号、無ければロック）
   const ids = Object.keys(remote);
-  state.projects = ids.map(id=>({ id, title:remote[id].title||"(無題)", createdAt:remote[id].createdAt||0, encrypted:!!remote[id].encrypted }))
+  state.projects = ids.map(id=>({ id, title:remote[id].title||"(無題)", createdAt:remote[id].createdAt||0, encrypted:!!remote[id].encrypted,
+      shared:!!remote[id]._shared, ownerUid:remote[id].ownerUid||null, members:remote[id].members||null, inviteOpen:remote[id].inviteOpen!==false }))
                       .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   state.data = {}; _locked = {};
   for(const id of ids){
     const rd = remote[id];
     if(rd.encrypted){
       // 章の暗号文も集めてから、鍵があれば一括復号。無ければロックへ退避
-      const chEnc={}; const chPlain={};
-      try{ const chSnap=await chaptersCol(id).get(); chSnap.forEach(c=>{ const cd=c.data(); if(cd.encrypted&&cd.enc) chEnc[c.id]=cd.enc; else chPlain[c.id]=cd; }); }catch(e){ console.warn("[Fabula] 章取得失敗 "+id+":", e); }
+      const chEnc={};
+      try{ const chSnap=await chapCol(id).get(); chSnap.forEach(c=>{ const cd=c.data(); if(cd.encrypted&&cd.enc) chEnc[c.id]=cd.enc; }); }catch(e){ console.warn("[Fabula] 章取得失敗 "+id+":", e); }
       _locked[id] = { cloud:true, enc:rd.enc, chEnc };
       const key = await getKey(id);
       if(key){ try{ state.data[id]=await decryptLocked(id, key); delete _locked[id]; }catch(e){ console.warn("[Fabula] 復号失敗 "+id); } }
@@ -2136,7 +2675,7 @@ async function pullFromCloud(){
       const data = rd.data || emptyProjectData();
       if(!data.manuscript) data.manuscript = {chapters:[]};
       try{
-        const chSnap = await chaptersCol(id).get();
+        const chSnap = await chapCol(id).get();
         const bodies = {}; chSnap.forEach(c=> bodies[c.id]=c.data());
         (data.manuscript.chapters||[]).forEach(ch=>{ const b=bodies[ch.id]; if(b){ ch.body=b.body||""; if(b.title) ch.title=b.title; } else { ch.body=ch.body||""; } });
       }catch(e){ console.warn("[Fabula] 章取得失敗 "+id+":", e); }
@@ -2147,71 +2686,291 @@ async function pullFromCloud(){
   saveLocal();
 }
 
-let _syncTimer=null; const _syncSet=new Set();
+// ===================== クラウド同期（キュー＋失敗時の自動再送） =====================
+// 状態はすべて SYNC に集約し、ヘッダーの点と同期パネルがここを読む。
+// 送信に失敗した分はキューに残したまま指数バックオフで再送する（捨てない）。
+const SYNC = { tries:0, err:"", lastOk:0, retryAt:0, busy:false };
+const _syncSet=new Set();                 // 作品ID
+const _chSyncSet=new Set();               // "pid::chId"
+let _flushTimer=null;
+function pendingCount(){ return _syncSet.size + _chSyncSet.size; }
+// 表示用の状態。持ち回さず常にここから導出する（状態の二重管理を避ける）
+let _authBusy=false;   // Discordログイン処理中
+function syncStateNow(){
+  if(_authBusy) return "saving";
+  if(!fbUser||!fbDb) return "off";
+  if(!pendingCount()) return "synced";
+  if(SYNC.tries>0) return navigator.onLine ? "retrying" : "offline";
+  return navigator.onLine ? "saving" : "offline";
+}
+const SYNC_LABEL={ synced:"同期済み", saving:"同期中…", retrying:"再送待ち", offline:"オフライン", off:"ローカルのみ" };
+function syncDotHtml(st){ return `<span class="sync-dot ${st==="synced"?"":esc(st)}"></span>`; }   // 既定色＝同期済み
+function syncText(st){ const n=pendingCount(); return (SYNC_LABEL[st]||"")+(n?`（未送信 ${n}件）`:""); }
+function syncChanged(){ updateAuthChip(); renderSyncPanel(); }
+
 function queueSync(id){
   if(!fbUser||!fbDb||!id) return;
-  _syncSet.add(id);
-  updateAuthChip("saving");
-  clearTimeout(_syncTimer);
-  _syncTimer=setTimeout(flushSync, 1000);
+  _syncSet.add(id); scheduleFlush(1000);
 }
-async function flushSync(){
-  if(!fbUser||!fbDb) return;
-  const ids=[..._syncSet]; _syncSet.clear();
-  for(const id of ids){
-    if(!state.data[id]) continue;             // 既に削除/ロック中の作品は送らない
-    const doc = await cloudDoc(id); if(!doc) continue;   // 暗号化＆鍵なしは送らない（平文漏れ防止）
-    try{ await projectsCol().doc(id).set(doc); }
-    catch(e){ console.warn("[Fabula] 同期失敗 "+id+":", e); }
-  }
-  updateAuthChip();
+function scheduleFlush(ms){
+  clearTimeout(_flushTimer);
+  SYNC.retryAt = Date.now()+ms;
+  _flushTimer=setTimeout(flushAll, ms);
+  syncChanged();
 }
-async function deleteRemote(id){
-  if(!fbUser||!fbDb||!id) return;
+function nextWait(){ return Math.min(60000, 2000*Math.pow(2, Math.max(0, Math.min(SYNC.tries-1, 5)))); }   // 2,4,8,16,32,60秒
+async function flushAll(){
+  if(!fbUser||!fbDb || SYNC.busy) return;
+  if(!pendingCount()){ SYNC.retryAt=0; syncChanged(); return; }
+  // 送っても無駄なので待つ。復帰は online イベントで拾う（保険で30秒後にも試す）
+  if(!navigator.onLine){ scheduleFlush(30000); return; }
+  SYNC.busy=true; SYNC.retryAt=0; syncChanged();
+  let failed=false, lastErr="";
   try{
-    const chSnap = await chaptersCol(id).get();          // 章サブコレクションも一緒に削除
+    for(const id of [..._syncSet]){
+      if(!state.data[id]){ _syncSet.delete(id); continue; }        // 既に削除/ロック中の作品は送らない
+      const doc = await cloudDoc(id);
+      if(!doc){ _syncSet.delete(id); continue; }                   // 暗号化＆鍵なしは送らない（平文漏れ防止）
+      try{ await workRef(id).set(doc); _syncSet.delete(id); }
+      catch(e){ failed=true; lastErr=(e&&e.message)||String(e); console.warn("[Fabula] 同期失敗 "+id+":", e); }
+    }
+    for(const k of [..._chSyncSet]){
+      const [pid,chId]=k.split("::");
+      const data=state.data[pid]; if(!data){ _chSyncSet.delete(k); continue; }
+      const ch=(data.manuscript?.chapters||[]).find(c=>c.id===chId); if(!ch){ _chSyncSet.delete(k); continue; }
+      const payload=await cloudChapter(pid, ch); if(!payload){ _chSyncSet.delete(k); continue; }
+      try{ await chapCol(pid).doc(chId).set(payload); _chSyncSet.delete(k); }
+      catch(e){ failed=true; lastErr=(e&&e.message)||String(e); console.warn("[Fabula] 章同期失敗 "+k+":", e); }
+    }
+  } finally { SYNC.busy=false; }
+  if(failed){
+    SYNC.tries++; SYNC.err=lastErr;
+    // 失敗トーストは「失敗状態に入った最初の1回」だけ。再送のたびに出すとうるさい
+    if(SYNC.tries===1) toast("クラウドに同期できませんでした。接続が戻ると自動で再送します", "err");
+    scheduleFlush(nextWait());
+  }
+  else { SYNC.tries=0; SYNC.err=""; SYNC.lastOk=Date.now(); SYNC.retryAt=0; syncChanged(); }
+}
+function syncNow(){ SYNC.tries=0; clearTimeout(_flushTimer); flushAll(); }
+if(typeof window!=="undefined"){
+  window.addEventListener("online",  ()=>{ if(pendingCount()) syncNow(); else syncChanged(); });
+  window.addEventListener("offline", syncChanged);
+  // タブを閉じる/隠す直前に未送信があれば即送信（デバウンス待ちの1秒を取りこぼさない。保証はできないので best effort）
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden" && pendingCount()) flushAll(); });
+  window.addEventListener("pagehide", ()=>{ if(pendingCount()) flushAll(); });
+}
+// ---- 同期パネル（ヘッダーの名前をクリック） ----
+function agoText(ts){
+  if(!ts) return "-";
+  const s=Math.round((Date.now()-ts)/1000);
+  if(s<10) return "たった今";
+  if(s<60) return s+"秒前";
+  if(s<3600) return Math.floor(s/60)+"分前";
+  return Math.floor(s/3600)+"時間前";
+}
+function syncPanelHtml(){
+  const st=syncStateNow(), n=pendingCount();
+  const rows=[`<div class="sync-row"><span>アカウント</span><b>${esc(acctName())}</b></div>`,
+              `<div class="sync-row"><span>状態</span><b>${esc(SYNC_LABEL[st]||st)}</b></div>`,
+              `<div class="sync-row"><span>最終同期</span><b>${esc(agoText(SYNC.lastOk))}</b></div>`,
+              `<div class="sync-row"><span>未送信</span><b>${n?n+"件":"-"}</b></div>`];
+  if(SYNC.err) rows.push(`<div class="sync-row"><span>エラー</span><b class="bad">${esc(SYNC.err)}</b></div>`);
+  if(SYNC.retryAt>Date.now()) rows.push(`<div class="sync-row"><span>次の送信</span><b>${Math.max(1,Math.round((SYNC.retryAt-Date.now())/1000))}秒後</b></div>`);
+  return rows.join("");
+}
+function renderSyncPanel(){
+  const el=document.getElementById("syncPanel"); if(!el) return;
+  el.innerHTML=syncPanelHtml();
+  const go=document.getElementById("syncGo"); if(go) go.disabled=!pendingCount();
+}
+function openSyncPanel(){
+  openModal(`<div class="menu-head"><span class="menu-title">クラウド同期</span><button class="menu-x" data-close title="閉じる">✕</button></div>
+    <div id="syncPanel">${syncPanelHtml()}</div>
+    <div class="modal-actions"><button class="btn" data-close>閉じる</button>
+      <button class="btn primary" id="syncGo">今すぐ送信</button></div>`,
+    (root)=>{
+      const go=root.querySelector("#syncGo");
+      renderSyncPanel();
+      if(go) go.onclick=()=>{ syncNow(); renderSyncPanel(); };
+      // 「次の送信まで◯秒」を動かすための更新。パネルが閉じたら自分で止まる
+      const t=setInterval(()=>{ if(!document.getElementById("syncPanel")){ clearInterval(t); return; } renderSyncPanel(); }, 1000);
+    });
+}
+// 作品の章を全部 col へ書き出す（共有の開始/解除・初回退避で使う）
+async function pushChapters(pid, col){
+  for(const ch of (state.data[pid]?.manuscript?.chapters||[])){
+    const cp=await cloudChapter(pid, ch); if(cp) await col.doc(ch.id).set(cp);
+  }
+}
+async function deleteRemote(id, ref){   // ref必須：state から外れた後でも消せるよう呼び元が渡す
+  if(!fbUser||!fbDb||!id||!ref) return;
+  try{
+    const chSnap = await ref.collection("chapters").get();   // 章サブコレクションも一緒に削除
     await Promise.all(chSnap.docs.map(d=>d.ref.delete()));
-    await projectsCol().doc(id).delete();
+    await ref.delete();
   }catch(e){ console.warn("[Fabula] リモート削除失敗:", e); }
 }
 
-// ---- 原稿の章ごと同期（本文は章ドキュメントに別保存） ----
-let _chSyncTimer=null; const _chSyncSet=new Set();   // "pid::chId"
+// ---- 原稿の章ごと同期（本文は章ドキュメントに別保存。送信は flushAll がまとめて行う） ----
 function queueChapterSync(pid, chId){
   if(!fbUser||!fbDb||!pid||!chId) return;
-  _chSyncSet.add(pid+"::"+chId);
-  updateAuthChip("saving");
-  clearTimeout(_chSyncTimer);
-  _chSyncTimer=setTimeout(flushChapterSync, 1000);
-}
-async function flushChapterSync(){
-  if(!fbUser||!fbDb) return;
-  const keys=[..._chSyncSet]; _chSyncSet.clear();
-  for(const k of keys){
-    const [pid,chId]=k.split("::");
-    const data=state.data[pid]; if(!data) continue;
-    const ch=(data.manuscript?.chapters||[]).find(c=>c.id===chId); if(!ch) continue;
-    const payload=await cloudChapter(pid, ch); if(!payload) continue;
-    try{ await chaptersCol(pid).doc(chId).set(payload); }
-    catch(e){ console.warn("[Fabula] 章同期失敗 "+k+":", e); }
-  }
-  updateAuthChip();
+  _chSyncSet.add(pid+"::"+chId); scheduleFlush(1000);
 }
 function deleteChapterRemote(pid, chId){
   if(!fbUser||!fbDb||!pid||!chId) return;
-  chaptersCol(pid).doc(chId).delete().catch(e=>console.warn("[Fabula] 章削除失敗:", e));
+  chapCol(pid).doc(chId).delete().catch(e=>console.warn("[Fabula] 章削除失敗:", e));
 }
 
-function updateAuthChip(status){
+// ======================= ライブ同期（onSnapshot）＋ presence =======================
+let _liveUnsub=[];
+function isEditingNow(){ const a=document.activeElement; return !!(a && (a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.isContentEditable)); }
+function editingChapterId(){ const a=document.activeElement; return (a && a.id==="msBody") ? _msCurrentChapter : null; }
+
+function startLiveSync(){
+  stopLiveSync();
+  const p=curProject();
+  if(!p || !p.shared || !fbUser || !fbDb) return;
+  const id=p.id, wref=worksCol().doc(id);
+  _liveUnsub.push(wref.onSnapshot(s=>onWorkSnap(id,s), e=>console.warn("[Fabula] live work:", e)));
+  _liveUnsub.push(wref.collection("chapters").onSnapshot(cs=>onChaptersSnap(id,cs), e=>console.warn("[Fabula] live chapters:", e)));
+  _liveUnsub.push(wref.collection("presence").onSnapshot(ps=>onPresenceSnap(id,ps), e=>console.warn("[Fabula] live presence:", e)));
+  startPresence(id);
+}
+function stopLiveSync(){ _liveUnsub.forEach(u=>{ try{ u(); }catch(e){} }); _liveUnsub=[]; stopPresence(); _presence=[]; updatePresenceBar(); }
+
+// 作品本体（原稿本文以外＋章の目次）のリモート変更を反映。自分のエコー/編集中は上書きしない。
+async function onWorkSnap(id, snap){
+  if(id!==state.currentId) return;
+  const p=projForId(id); if(!p) return;
+  if(!snap.exists){   // オーナーが削除
+    stopLiveSync();
+    forgetProject(id);
+    saveLocal(); renderAll(); noticeModal("共有作品が削除されました", 'この作品はオーナーによって削除されました。<br><span class="muted">この端末からも取り除きました。</span>');
+    return;
+  }
+  if(snap.metadata.hasPendingWrites) return;   // 自分の書き込みのエコーは無視
+  const d=snap.data();
+  p.title=d.title||p.title; p.members=d.members||p.members; p.inviteOpen=d.inviteOpen!==false; p.ownerUid=d.ownerUid||p.ownerUid;
+  let newData=null;
+  try{ if(d.encrypted){ const key=await getKey(id); if(key) newData=await decObj(d.enc, key); } else newData=d.data; }
+  catch(e){ console.warn("[Fabula] live復号失敗", e); }
+  if(newData){
+    if(!newData.manuscript) newData.manuscript={chapters:[]};
+    const cur=state.data[id]||emptyProjectData();
+    const bodies={}; (cur.manuscript?.chapters||[]).forEach(c=>bodies[c.id]=c.body);
+    (newData.manuscript.chapters||[]).forEach(c=>{ if(c.body===undefined && bodies[c.id]!==undefined) c.body=bodies[c.id]; });   // 本文は章docで反映するので維持
+    state.data[id]=newData;
+  }
+  if(isEditingNow()) renderProjectBar();           // 入力中はビュー全体の再描画を避ける（打鍵保護）
+  else { renderProjectBar(); renderView(); }
+  updatePresenceBar();
+}
+
+// 章（原稿本文）のリモート変更を反映。編集中の章は触らない。
+async function onChaptersSnap(id, cs){
+  if(id!==state.currentId) return;
+  const data=state.data[id]; if(!data) return;     // ロック中などはスキップ
+  if(!data.manuscript) data.manuscript={chapters:[]};
+  const chs=data.manuscript.chapters;
+  const editId=editingChapterId();
+  let changed=false;
+  for(const chg of cs.docChanges()){
+    if(chg.doc.metadata.hasPendingWrites) continue;   // 自分のエコー無視
+    const chId=chg.doc.id;
+    if(chId===editId) continue;                        // 編集中の章は打鍵保護で触らない
+    if(chg.type==="removed"){ const i=chs.findIndex(c=>c.id===chId); if(i>=0){ chs.splice(i,1); changed=true; } continue; }
+    const cd=chg.doc.data(); let title=cd.title||"", body=cd.body||"";
+    if(cd.encrypted && cd.enc){ const key=await getKey(id); if(!key) continue; try{ const o=await decObj(cd.enc,key); title=o.title||""; body=o.body||""; }catch(e){ continue; } }
+    let c=chs.find(x=>x.id===chId);
+    if(!c){ c={id:chId,title,body}; chs.push(c); changed=true; }
+    else { if(c.title!==title){ c.title=title; changed=true; } if(c.body!==body){ c.body=body; changed=true; } }
+  }
+  if(changed){
+    saveLocal();
+    if(currentView==="manuscript" && !isEditingNow()) renderView();
+    else if(typeof renderChapterList==="function" && document.getElementById("msEditor")) renderChapterList();
+  }
+}
+
+// ---- presence（誰が編集中） ----
+let _presence=[], _presenceTimer=null, _presenceId=null;
+function myPresenceRef(id){ return worksCol().doc(id).collection("presence").doc(fbUser.uid); }
+function writePresence(id){
+  if(!fbUser) return;
+  const chId=(currentView==="manuscript")?(_msCurrentChapter||""):"";
+  myPresenceRef(id).set({ name:acctName(), chId, at:Date.now() }).catch(()=>{});
+}
+function touchPresence(){ if(_presenceId && fbUser) writePresence(_presenceId); }
+function startPresence(id){ stopPresence(); _presenceId=id; writePresence(id); _presenceTimer=setInterval(()=>writePresence(id), 20000); }
+function stopPresence(){ if(_presenceTimer){ clearInterval(_presenceTimer); _presenceTimer=null; } if(_presenceId && fbUser){ try{ myPresenceRef(_presenceId).delete(); }catch(e){} } _presenceId=null; }
+function onPresenceSnap(id, ps){
+  if(id!==state.currentId) return;
+  const now=Date.now(), others=[];
+  ps.forEach(d=>{ const v=d.data(); if(d.id!==fbUser.uid && v && v.at && (now-v.at)<60000) others.push(v); });
+  _presence=others; updatePresenceBar();
+}
+function updatePresenceBar(){
+  const bar=document.getElementById("presenceBar"); if(!bar) return;
+  const p=curProject();
+  if(!p || !p.shared || !fbUser || !_presence.length){ bar.hidden=true; bar.innerHTML=""; return; }
+  bar.hidden=false;
+  bar.innerHTML = `<span>共同編集中:</span>` + _presence.map(v=>
+    `<span class="present-chip"><span class="edit-dot"></span>${esc(v.name||"参加者")}${v.chId?"（原稿）":""}</span>`).join("");
+}
+if(typeof window!=="undefined") window.addEventListener("beforeunload", ()=>{ try{ stopPresence(); }catch(e){} });
+
+// ---- 共有リンクで参加 ----
+function handleJoinLink(){
+  const h = location.hash.startsWith("#") ? location.hash.slice(1) : "";
+  if(!h) return;
+  const q=new URLSearchParams(h); const id=q.get("join"); if(!id) return;
+  const k=q.get("k")||"";
+  try{ sessionStorage.setItem("fabula:pendingJoin", JSON.stringify({id,k})); }catch(e){}
+  history.replaceState(null,"",location.pathname);   // 鍵をURLに残さない
+}
+function getPendingJoin(){ try{ return JSON.parse(sessionStorage.getItem("fabula:pendingJoin")||"null"); }catch(e){ return null; } }
+function clearPendingJoin(){ try{ sessionStorage.removeItem("fabula:pendingJoin"); }catch(e){} }
+async function resolvePendingJoin(){
+  const pj=getPendingJoin(); if(!pj||!pj.id) return;
+  if(!fbUser){
+    openModal(`<h3>共同編集に参加</h3>
+      <p class="modal-msg gap">招待された作品に参加するにはログインが必要です。</p>
+      <div class="modal-actions"><button class="btn" id="pjCancel">やめる</button><button class="btn primary" id="pjLogin">Discordでログイン</button></div>`,
+      (root)=>{ root.querySelector("#pjLogin").onclick=()=>{ closeModal(); loginDiscord(); };
+                root.querySelector("#pjCancel").onclick=()=>{ clearPendingJoin(); closeModal(); }; });
+    return;
+  }
+  clearPendingJoin();
+  try{
+    if(pj.k){ _keyStrs[pj.id]=pj.k; saveKeyStrs(); delete _keyCache[pj.id]; }
+    const ref=worksCol().doc(pj.id); const snap=await ref.get();
+    if(!snap.exists){ noticeModal("共有作品が見つかりません", '削除された可能性があります。<br><span class="muted">リンクを送ってくれた人に確認してください。</span>'); return; }
+    const d=snap.data(), members=d.members||[];
+    if(!members.includes(fbUser.uid)){
+      if(d.inviteOpen===false){ noticeModal("参加を受け付けていません", 'この作品は新しい参加の受付を停止しています。<br><span class="muted">オーナーに連絡してください。</span>'); return; }
+      try{ await ref.update({ members:[...members, fbUser.uid] }); }
+      catch(e){ noticeModal("参加できませんでした", escBr(e.message||e) + '<br><span class="muted">受付を停止中か、権限エラーの可能性があります。</span>'); return; }
+    }
+    await pullFromCloud();
+    state.currentId=pj.id; saveLocal(); renderAll(); startLiveSync();
+    const jp=projForId(pj.id); toast("共同編集に参加しました：「"+((jp&&jp.title)||"")+"」");
+  }catch(e){ noticeModal("参加処理に失敗しました", escBr(e.message||e)); }
+}
+
+function updateAuthChip(){
   const chip=document.getElementById("authChip"); if(!chip) return;
   if(fbUser){
     // ログイン時のみ表示（名前＋同期状態）。ログインは☰メニューから
     chip.style.display="inline-flex";
-    const name=acctName();
-    const short=name.length>10?name.slice(0,10)+"…":name;
-    chip.innerHTML=`<span class="sync-dot ${status==="saving"?"saving":""}"></span>${esc(short)}`;
-    chip.title=(status==="saving"?"同期中… ":"☁ 同期済み ")+name;
-    chip.onclick=openMenu;
+    const name=acctName(), st=syncStateNow();
+    // ヘッダーは点だけ。状態は色で示す（名前・件数・原因はクリックで開く同期パネルへ）
+    const sig=st+"|"+name+"|"+pendingCount();
+    if(chip._sig!==sig){   // 入力のたびに save() が走るので、見た目が変わる時だけDOMを触る
+      chip._sig=sig;
+      chip.innerHTML=syncDotHtml(st);
+      chip.title=syncText(st)+" ・ "+name+" ・ クリックで詳細";
+    }
+    chip.onclick=openSyncPanel;
   }else{
     chip.style.display="none";   // 未ログインはヘッダーに出さない（☰メニューからログイン）
   }
