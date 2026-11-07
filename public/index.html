@@ -104,8 +104,28 @@
   .drag-active .drag-grip{opacity:1;color:var(--text);cursor:grabbing}
   .char-top{display:flex;gap:12px;padding:13px;align-items:flex-start}
   .char-body{min-width:0;flex:1}
-  .avatar{width:52px;height:52px;border-radius:5px;flex-shrink:0;object-fit:cover;background:var(--surface-2);
+  /* 編集ダイアログの画像プレビュー（調整は専用ダイアログで） */
+  .img-pick{position:relative;width:96px;height:96px;border-radius:5px;overflow:hidden;background:var(--surface-2)}
+  .img-pick img{width:100%;height:100%;object-fit:cover;display:block;-webkit-user-drag:none}
+  .img-pick-foot{display:flex;align-items:center;gap:8px;margin-top:6px}
+  /* 画像の調整ダイアログ */
+  .crop-stage{position:relative;width:min(260px,70vw);height:min(260px,70vw);margin:0 auto;border-radius:6px;
+    overflow:hidden;background:var(--surface-2);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+  .crop-stage:active{cursor:grabbing}
+  .crop-stage img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
+  .crop-grid{position:absolute;inset:0;pointer-events:none;opacity:.25;transition:opacity .12s;
+    background-image:repeating-linear-gradient(to right, rgba(255,255,255,.6) 0 1px, transparent 1px 33.33%),
+                     repeating-linear-gradient(to bottom, rgba(255,255,255,.6) 0 1px, transparent 1px 33.33%)}
+  .crop-stage.dragging .crop-grid{opacity:.7}
+  .crop-row{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:12.5px;color:var(--text-2)}
+  .crop-row input[type=range]{flex:1;accent-color:var(--primary)}
+  .crop-prevs{display:flex;align-items:center;gap:12px;margin-top:12px;font-size:12px;color:var(--text-2)}
+  .crop-bub{width:46px;height:46px;border-radius:50%;overflow:hidden;flex:0 0 auto;background:var(--surface-2);
+    border:2px solid var(--surface);box-shadow:0 2px 10px rgba(0,0,0,.3)}
+  .crop-bub img{width:100%;height:100%;object-fit:cover;display:block}
+  .avatar{width:52px;height:52px;border-radius:5px;flex-shrink:0;overflow:hidden;background:var(--surface-2);
     display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:20px}
+  .avatar>img,.cd-ava>img{width:100%;height:100%;object-fit:cover;display:block}
   .char-name{font-weight:700;font-size:15px;word-break:break-word;padding-right:20px}
   .char-fields{margin-top:6px;display:flex;flex-direction:column;gap:3px}
   .cf-row{display:flex;gap:8px;font-size:12.5px;line-height:1.5}
@@ -129,7 +149,7 @@
   .cbub img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
   .cbub:active{cursor:grabbing}
   .cbub.active{outline:2px solid var(--primary);outline-offset:1px}
-  .cd-ava{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:0 0 auto;
+  .cd-ava{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;
     border:2px solid var(--surface);box-shadow:0 1px 6px rgba(0,0,0,.25);
     display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:17px}
   .cd-detail{position:fixed;width:min(280px,72vw);max-height:70vh;overflow:auto;pointer-events:auto;
@@ -811,8 +831,23 @@ function loadBubblePos(){ try{ return JSON.parse(localStorage.getItem("fabula:bu
 let _bubblePos = loadBubblePos();
 function saveBubblePos(){ _bubSim.forEach(n=>{ _bubblePos[n.id]={x:Math.round(n.x),y:Math.round(n.y)}; }); try{ localStorage.setItem("fabula:bubbles", JSON.stringify(_bubblePos)); }catch(e){} }
 // アバター（画像 or 色付き頭文字）と項目リストのHTML。カード/バブル詳細で共用
+function imgPos(c){ return okPos(c && c.imgPos); }
+function okPos(v){ return /^\d{1,3}% \d{1,3}%$/.test(String(v||"")) ? v : "50% 50%"; }   // CSSへ入れるので形を検査
+// 画像の見せ方＝「どこを中心に(imgPos)」＋「どれだけ寄るか・ずらすか(imgCrop)」。
+// どちらも枠の大きさに比例する指定なので、カード52px・バブル46px・調整画面260px で同じ絵になる。
+function okCrop(v){
+  const z=Math.max(1, Math.min(3, Number(v&&v.z)||1));
+  const n=(t)=>Math.round(Math.max(-200, Math.min(200, Number(t)||0))*100)/100;
+  return { z:Math.round(z*1000)/1000, x:n(v&&v.x), y:n(v&&v.y) };
+}
+function cropOf(c){ return okCrop(c && c.imgCrop); }
+function imgStyle(c){
+  const k=cropOf(c);
+  const tr=(k.z!==1||k.x||k.y) ? `;transform:scale(${k.z}) translate(${k.x}%,${k.y}%)` : "";
+  return `object-position:${imgPos(c)}${tr}`;
+}
 function avatarHtml(c, cls){
-  return c.image ? `<img class="${cls}" src="${esc(c.image)}" alt="">`
+  return c.image ? `<div class="${cls}"><img src="${esc(c.image)}" alt="" style="${imgStyle(c)}"></div>`
     : `<div class="${cls}" style="background:${c.color||'#888'}">${esc((c.name||'?').slice(0,1))}</div>`;
 }
 function charFieldsHtml(c, drag){
@@ -883,10 +918,10 @@ function renderCharBubbles(){   // DOMとキャラ一覧を同期し、物理ル
                                         {opacity:1,transform:`translate(${n.x}px,${n.y}px) scale(1)`}],
         {duration:220, delay:Math.min(240, _bubSim.indexOf(n)*45), easing:"cubic-bezier(.2,.8,.3,1)", fill:"backwards"});
     }
-    const sig=(c.image||'')+'|'+(c.name||'')+'|'+(c.color||'');
+    const sig=(c.image||'')+'|'+(c.name||'')+'|'+(c.color||'')+'|'+imgStyle(c);
     if(n.sig!==sig){
       n.el.title=c.name||"";
-      n.el.innerHTML = c.image? `<img src="${esc(c.image)}">` : esc((c.name||'?').slice(0,1));
+      n.el.innerHTML = c.image? `<img src="${esc(c.image)}" style="${imgStyle(c)}">` : esc((c.name||'?').slice(0,1));
       n.el.style.background = c.image? "" : (c.color||'#888');
       n.sig=sig;
     }
@@ -1031,7 +1066,7 @@ function editCharacter(id){
     <div class="field"><label>色</label><div class="swatch" id="cColor">${COLORS.map(col=>
       `<label><input type="radio" name="col" value="${col}" ${col===c.color?"checked":""}><span style="background:${col}"></span></label>`).join("")}</div></div>
     <div class="field"><label>画像</label><input type="file" accept="image/*" id="cImg">
-      <div id="imgPrev" style="margin-top:8px">${c.image?`<img src="${c.image}" style="width:72px;height:72px;border-radius:5px;object-fit:cover">`:""}</div></div>
+      <div id="imgPrev" style="margin-top:8px">${imgPickHtml(c.image, imgPos(c), cropOf(c))}</div></div>
     <div class="field"><label>項目</label><div id="cFields">${fieldsHtml}</div>
       <button class="mini" id="addField" style="margin-top:4px">＋ 項目追加</button></div>
     <div class="modal-actions">
@@ -1044,8 +1079,10 @@ function editCharacter(id){
       root.querySelector("#cImg").onchange=async e=>{
         const f=e.target.files[0]; if(!f)return;
         image=await fileToSmallDataUrl(f);
-        root.querySelector("#imgPrev").innerHTML=`<img src="${image}" style="width:72px;height:72px;border-radius:5px;object-fit:cover">`;
+        root.querySelector("#imgPrev").innerHTML=imgPickHtml(image, "50% 50%", null);   // 差し替えたら等倍・中央に戻す
+        bindImgPick(root, image);
       };
+      bindImgPick(root, c.image);
       root.querySelector("#addField").onclick=()=>{
         const d=document.createElement("div"); d.innerHTML=fieldRow({k:"",v:""});
         root.querySelector("#cFields").appendChild(d.firstElementChild); bindFieldRemovers(root);
@@ -1058,7 +1095,9 @@ function editCharacter(id){
           k:r.querySelector(".fk").value.trim(), v:r.querySelector(".fv").value.trim()
         })).filter(f=>f.k||f.v);
         const tags=parseTags(root.querySelector("#cTags").value);
-        const obj={id:c.id,name,color,image,fields,tags};
+        const posEl=root.querySelector("#cImgPos"), cropEl=root.querySelector("#cImgCrop");
+        let crop=null; try{ crop=JSON.parse((cropEl&&cropEl.value)||"null"); }catch(e){}
+        const obj={id:c.id,name,color,image,imgPos:okPos(posEl?posEl.value:imgPos(c)),imgCrop:okCrop(crop),fields,tags};
         if(id){ const i=cur().characters.findIndex(x=>x.id===id); cur().characters[i]=obj; }
         else { cur().characters.push(obj); }
         flashSaved(obj.id, !id);
@@ -1110,6 +1149,95 @@ function editCharTemplate(){
 const GRIP_SVG = `<svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.2"/><circle cx="7" cy="3" r="1.2"/><circle cx="3" cy="8" r="1.2"/><circle cx="7" cy="8" r="1.2"/><circle cx="3" cy="13" r="1.2"/><circle cx="7" cy="13" r="1.2"/></svg>`;
 let _frSeq=0;
 function fieldRow(f, vPlaceholder){ return `<div class="field-row" data-id="fr${++_frSeq}"><span class="drag-grip fld-grip" title="ドラッグで並べ替え">${GRIP_SVG}</span><input class="fk" placeholder="項目名" value="${esc(f.k)}"><input class="fv" placeholder="${esc(vPlaceholder||"内容")}" value="${esc(f.v)}"><button class="mini rm" title="削除">×</button></div>`; }
+// 画像プレビュー＋「調整」ボタン。位置と拡大は hidden input に入れておく
+// （保存時に読むだけでなく、モーダルの「編集済み」判定にもそのまま乗る）
+function imgPickHtml(image, pos, crop){
+  if(!image) return `<input type="hidden" id="cImgPos" value="50% 50%"><input type="hidden" id="cImgCrop" value="">`;
+  const k=okCrop(crop);
+  const st=`object-position:${okPos(pos)};transform:scale(${k.z}) translate(${k.x}%,${k.y}%)`;
+  return `<div class="img-pick" id="imgPick"><img src="${esc(image)}" style="${st}"></div>
+    <div class="img-pick-foot"><button type="button" class="btn mini2" id="imgAdjust">位置・大きさを調整</button></div>
+    <input type="hidden" id="cImgPos" value="${okPos(pos)}">
+    <input type="hidden" id="cImgCrop" value="${esc(JSON.stringify(k))}">`;
+}
+function bindImgPick(root, image){
+  const btn=root.querySelector("#imgAdjust"); if(!btn) return;
+  btn.onclick=async ()=>{
+    const posEl=root.querySelector("#cImgPos"), cropEl=root.querySelector("#cImgCrop");
+    let crop; try{ crop=JSON.parse(cropEl.value||"{}"); }catch(e){ crop=null; }
+    const res=await openImageAdjust(image, posEl.value, crop);
+    if(!res) return;
+    posEl.value=res.pos; cropEl.value=JSON.stringify(res.crop);
+    const img=root.querySelector("#imgPick img");
+    if(img) img.style.cssText=`object-position:${res.pos};transform:scale(${res.crop.z}) translate(${res.crop.x}%,${res.crop.y}%)`;
+  };
+}
+// 画像の調整ダイアログ（編集ダイアログの上に重ねる）。{pos, crop} か null を返す
+function openImageAdjust(image, pos, crop){
+  return new Promise(resolve=>{
+    let host=document.getElementById("confirmHost");
+    if(!host){ host=document.createElement("div"); host.id="confirmHost"; document.body.appendChild(host); }
+    const st=(p,k)=>`object-position:${p};transform:scale(${k.z}) translate(${k.x}%,${k.y}%)`;
+    let k=okCrop(crop), p0=okPos(pos);
+    host.innerHTML=`<div class="overlay overlay-2"><div class="modal" style="max-width:360px">
+      <h3>画像の調整</h3>
+      <div class="crop-stage" id="cropStage"><img src="${esc(image)}"><span class="crop-grid"></span></div>
+      <div class="crop-row"><span>大きさ</span>
+        <input type="range" id="cropZoom" min="100" max="300" step="1" value="${Math.round(k.z*100)}">
+        <span id="cropZoomVal" style="flex:0 0 42px;text-align:right">${Math.round(k.z*100)}%</span></div>
+      <div class="crop-prevs"><span>実際の見え方</span>
+        <div class="avatar" id="cropPrevCard"><img src="${esc(image)}"></div>
+        <div class="crop-bub" id="cropPrevBub"><img src="${esc(image)}"></div></div>
+      <div class="modal-actions">
+        <button class="btn" id="cropReset">元に戻す</button>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn" id="cropNo">キャンセル</button>
+        <button class="btn primary" id="cropOk">適用</button>
+      </div></div></div>`;
+    const stage=host.querySelector("#cropStage"), img=stage.querySelector("img");
+    const zr=host.querySelector("#cropZoom"), zv=host.querySelector("#cropZoomVal");
+    const prevs=[host.querySelector("#cropPrevCard img"), host.querySelector("#cropPrevBub img")];
+    // 枠からはみ出している分までしか動かせない（空白を出さない）。z倍すると動ける幅も増える
+    const limits=()=>{
+      const ar=(img.naturalWidth||1)/(img.naturalHeight||1);
+      return { mx:Math.max(0, 50*(Math.max(1,ar)-1/k.z)), my:Math.max(0, 50*(Math.max(1,1/ar)-1/k.z)) };
+    };
+    const apply=()=>{
+      const L=limits();
+      k.x=Math.max(-L.mx, Math.min(L.mx, k.x)); k.y=Math.max(-L.my, Math.min(L.my, k.y));
+      k=okCrop(k);
+      const css=st(p0,k);
+      img.style.cssText=css; prevs.forEach(e=>{ if(e) e.style.cssText=css; });
+      zv.textContent=Math.round(k.z*100)+"%";
+    };
+    const ready=()=>apply();
+    if(img.complete) ready(); else img.onload=ready;
+    // 位置：画像を掴んで動かすのと同じ速さ（1px動かせば1px動く）
+    stage.addEventListener("pointerdown", e=>{
+      if(e.pointerType==="mouse" && e.button!==0) return;
+      e.preventDefault();
+      const r=stage.getBoundingClientRect(), sx=e.clientX, sy=e.clientY, x0=k.x, y0=k.y;
+      stage.classList.add("dragging");
+      const move=ev=>{ k.x=x0+(ev.clientX-sx)/(k.z*r.width)*100; k.y=y0+(ev.clientY-sy)/(k.z*r.height)*100; apply(); };
+      const up=()=>{ stage.classList.remove("dragging");
+        window.removeEventListener("pointermove",move,true); window.removeEventListener("pointerup",up,true); window.removeEventListener("pointercancel",up,true); };
+      window.addEventListener("pointermove",move,true); window.addEventListener("pointerup",up,true); window.addEventListener("pointercancel",up,true);
+    });
+    zr.addEventListener("input", ()=>{ k.z=(+zr.value)/100; apply(); });
+    stage.addEventListener("wheel", e=>{ e.preventDefault();
+      k.z=Math.max(1, Math.min(3, k.z - e.deltaY*0.0015)); zr.value=Math.round(k.z*100); apply(); }, {passive:false});
+    host.querySelector("#cropReset").onclick=()=>{ k={z:1,x:0,y:0}; p0="50% 50%"; zr.value=100; apply(); };
+    let done=false;
+    const finish=(v)=>{ if(done) return; done=true;
+      document.removeEventListener("keydown", onKey, true); host.innerHTML=""; resolve(v); };
+    const onKey=(e)=>{ if(e.key==="Escape" && !e.isComposing){ e.preventDefault(); e.stopPropagation(); finish(null); } };
+    const ov=host.querySelector(".overlay");
+    ov.addEventListener("click", e=>{ if(e.target===ov) finish(null); });
+    host.querySelector("#cropNo").onclick=()=>finish(null);
+    host.querySelector("#cropOk").onclick=()=>finish({ pos:p0, crop:okCrop(k) });
+    document.addEventListener("keydown", onKey, true);
+  });
+}
 function bindFieldRemovers(root){ root.querySelectorAll("#cFields .rm").forEach(b=>b.onclick=()=>{ b.closest(".field-row").remove(); }); }
 // ---- 並べ替え（ドラッグ）。host直下の子が単位。DOM順を commit(ids) でデータ側へ書き戻す ----
 // 並べ替えの単位は host の直下の子で、目印は data-id だけ。
