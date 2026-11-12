@@ -12,8 +12,12 @@ service cloud.firestore {
 
     // 共有作品
     match /works/{workId} {
-      // 読み取り：ログイン済みなら可（unguessable な workId＝共有リンクが能力。"リンクを知る人は閲覧可"モデル）
-      allow read: if request.auth != null;
+      // 読み取り：単体取得(get)はログイン済みなら可（unguessable な workId＝共有リンクが能力。
+      //   "リンクを知る人は閲覧可"モデル）。
+      // 一覧(list)は自分が参加しているものだけ。read のままだと works 全体を列挙できてしまい、
+      // 他人の共有作品の中身が丸見えになる（エミュレータで確認済み）。
+      allow get:  if request.auth != null;
+      allow list: if request.auth != null && request.auth.uid in resource.data.members;
 
       // 作成：作成者が自分を owner かつ member に設定している場合のみ
       allow create: if request.auth != null

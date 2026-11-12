@@ -305,6 +305,12 @@
   .share-mem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 2px;font-size:13.5px;border-bottom:1px solid var(--border)}
   .edit-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--primary);margin-right:6px;vertical-align:middle}
   .present-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--text-2);margin:2px 0 8px}
+  /* 危ない状態を出しっぱなしにする帯（今は「共有作品をログアウト中に編集」） */
+  .warn-bar{display:flex;flex-direction:column;gap:8px;margin:2px 0 10px;
+    font-size:12.5px;line-height:1.6;color:var(--text)}
+  .warn-bar .warn-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 11px;
+    border:1px solid var(--danger);border-left-width:3px;border-radius:5px;background:rgba(229,72,77,.08)}
+  .warn-bar .btn{flex:0 0 auto;padding:4px 10px;font-size:12px}
   .present-chip{display:inline-flex;align-items:center;gap:5px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:2px 9px}
   .menu-tog{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 2px;font-size:13.5px;cursor:pointer}
   .sw{position:relative;display:inline-block;width:38px;height:22px;flex:0 0 auto}
@@ -389,7 +395,7 @@
   .bk-nombre{position:absolute;bottom:6mm;left:0;right:0;text-align:center;font-size:8pt;color:#333;
     font-family:"Hiragino Mincho ProN","Yu Mincho",serif}
   @media print{
-    header, nav.tabs, #main, #overlayHost{ display:none !important; }
+    header, nav.tabs, #main, #overlayHost, #warnBar, #presenceBar, #charDock{ display:none !important; }
     #bookOverlay{ position:static !important; background:#fff !important; display:block !important; }
     .book-bar{ display:none !important; }
     .book-pages{ display:block !important; overflow:visible !important; padding:0 !important; }
@@ -461,6 +467,7 @@
   <button data-view="memo">メモ</button>
 </nav>
 
+<div id="warnBar" class="warn-bar" hidden></div>
 <div id="presenceBar" class="present-bar" hidden></div>
 <main id="main"></main>
 
@@ -498,18 +505,37 @@ async function decObj(enc, key){ const pt=await crypto.subtle.decrypt({name:"AES
   return JSON.parse(new TextDecoder().decode(pt)); }
 function loadKeyStrs(){ try{ return JSON.parse(localStorage.getItem("fabula:keys"))||{}; }catch(e){ return {}; } }
 let _keyStrs=loadKeyStrs(); const _keyCache={};
-function saveKeyStrs(){ try{ localStorage.setItem("fabula:keys", JSON.stringify(_keyStrs)); }catch(e){} }
+function saveKeyStrs(){
+  try{ localStorage.setItem("fabula:keys", JSON.stringify(_keyStrs)); }
+  catch(e){
+    console.warn("[Fabula] 鍵の保存失敗:", e);
+    warnModalOrToast("復元キーを保存できませんでした",
+      'この端末に復元キーを保存できませんでした。<b>このままだと暗号化した作品を開けなくなります。</b><br>'
+      + '<span class="muted">表示された復元キーを必ず控えてから続けてください。</span>',
+      "復元キーを保存できませんでした。表示中のキーを必ず控えてください");
+  }
+}
 async function getKey(id){ if(_keyCache[id]) return _keyCache[id]; const s=_keyStrs[id]; if(!s) return null;
   try{ const k=await importKeyStr(s); _keyCache[id]=k; return k; }catch(e){ return null; } }
 
 let _locked={};                       // { pid: {__enc} } 復号できていない暗号化作品（state.dataには入れない）
+let _loadBroken=false;                // 保存データが読めなかった（起動後に知らせる）。load()より先に宣言すること
 let state = load();
 partitionLocked();
 function load(){
+  let raw=null;
   try{
-    const raw = localStorage.getItem(STORE_KEY) || localStorage.getItem("storyforge:v1"); // 旧名(StoryForge)のデータも自動で引き継ぐ
+    raw = localStorage.getItem(STORE_KEY) || localStorage.getItem("storyforge:v1"); // 旧名(StoryForge)のデータも自動で引き継ぐ
     if(raw) return JSON.parse(raw);
-  }catch(e){}
+  }catch(e){
+    console.warn("[Fabula] 保存データを読めません:", e);
+    // 空で始まると次の保存で壊れたデータごと上書きしてしまうので、現物を退避してから知らせる。
+    // 退避自体が失敗することもある（容量いっぱいが原因なら特に）ので、結果を区別して伝える
+    if(raw){
+      try{ localStorage.setItem(STORE_KEY+".broken", raw); _loadBroken="saved"; }
+      catch(_){ _loadBroken="failed"; }
+    }
+  }
   return { projects:[], currentId:null, data:{} };
 }
 function partitionLocked(){ _locked={}; for(const p of (state.projects||[])){ const d=state.data[p.id]; if(d&&d.__enc){ _locked[p.id]=d; delete state.data[p.id]; } } }
@@ -521,7 +547,15 @@ async function unlockAvailable(){   // 鍵を持っている暗号化作品を�
 }
 // localStorage保存：暗号化作品は暗号文で書く（crypto非同期のため直列化。非暗号化は従来どおり平文）
 let _saveChain=Promise.resolve();
-function saveLocal(){ _saveChain=_saveChain.then(doSaveLocal, doSaveLocal); return _saveChain; }
+function saveLocal(){ _tabClean=false; _saveChain=_saveChain.then(doSaveLocal, doSaveLocal); return _saveChain; }
+// 重大な知らせ。編集モーダルが開いている間は openModal で潰してしまうのでトーストにする
+// （出せなかった時は false を返すので、呼び元は「まだ知らせていない」扱いにできる）
+function warnModalOrToast(title, html, short){
+  if(document.querySelector("#overlayHost .modal")){ toast(short||title, "err"); return false; }
+  noticeModal(title, html); return true;
+}
+let _saveFailed=false, _saveNoticed=false, _nearFullWarned=false;
+const STORE_WARN=2000000;   // これを超えたら上限（概ね5MB）が近い
 async function doSaveLocal(){
   try{
     const data={};
@@ -531,11 +565,61 @@ async function doSaveLocal(){
       if(p.encrypted){ const key=await getKey(id); data[id]= key ? { __enc: await encObj(plain, key) } : plain; }  // 鍵欠落時は喪失回避で平文
       else data[id]=plain;
     }
-    localStorage.setItem(STORE_KEY, JSON.stringify({ projects:state.projects, currentId:state.currentId, data }));
-  }catch(e){ console.warn("[Fabula] ローカル保存失敗:", e); }
+    const json=JSON.stringify({ projects:state.projects, currentId:state.currentId, data, w:TAB_ID });
+    localStorage.setItem(STORE_KEY, json);
+    _tabClean=true;   // 保存できた直後だけは、保存先の中身＝このタブの中身
+    if(_saveFailed){ _saveFailed=false; _saveNoticed=false; toast("保存できるようになりました"); }
+    if(!_nearFullWarned && json.length>STORE_WARN){   // 崖に落ちる前に一度だけ知らせる
+      _nearFullWarned=true;
+      toast("この端末の保存容量の上限が近づいています（画像が多いと早く埋まります）", "err");
+    }
+  }catch(e){
+    console.warn("[Fabula] ローカル保存失敗:", e);
+    // 黙って失敗すると、未ログインではリロードした時点で編集内容が消える
+    if(!_saveNoticed){
+      _saveNoticed = true;   // 出せたのがトーストでも、知らせたことにする（打鍵ごとに出さない）
+      warnModalOrToast("保存できませんでした",
+        'この端末に保存できませんでした。<b>このまま閉じると、ここまでの編集が失われます。</b><br>'
+        + (fbUser ? '<span class="muted">ログイン中なのでクラウドには送られています。別の端末やブラウザから開けば続きを編集できます。</span>'
+                  : '<span class="muted">保存容量の上限（おおよそ5MB）に達したか、ブラウザのプライベートモードなどで保存が許可されていない可能性があります。'
+                    + '画像の多い作品は容量を使います。不要な画像や作品を減らすか、別のブラウザでお試しください。</span>'),
+        "保存できませんでした（この端末の空き容量を確認してください）");
+    }
+    _saveFailed=true;
+  }
 }
 function save(){ saveLocal(); queueSync(state.currentId); }   // ローカル保存＋（ログイン時）クラウド同期
+// ---- 同じブラウザで2つ以上タブを開いた時 ----
+// localStorage は全タブ共有なので、何もしないと「古い状態を抱えたタブの保存」が
+// もう片方の作業を丸ごと消す。自分以外の書き込みを見たら、
+//   ・こちらに未保存の編集が無ければ新しい方に合わせる（黙って消えるのを防ぐ）
+//   ・両方で編集していたら帯で知らせる（どちらかは必ず消えるので、利用者に決めてもらう）
+let _tabClean=true;     // 直近の保存＝このタブの中身、か
+let _otherTab=false;    // 別タブでも編集している
+let _adoptTimer=null;
+if(typeof window!=="undefined") window.addEventListener("storage", (e)=>{
+  if(e.key!==STORE_KEY || !e.newValue) return;
+  let v=null; try{ v=JSON.parse(e.newValue); }catch(_){ return; }
+  if(!v || v.w===TAB_ID) return;                       // 自分の書き込み
+  // 取り込んで良いのは「失うものが無い」時だけ。
+  // 入力中はもちろん、ダイアログが開いている間も不可（開いているダイアログは
+  // 古い state のオブジェクトを掴んだままなので、差し替えると行き先を失う）。
+  const safe = _tabClean && !isEditingNow() && !document.querySelector("#overlayHost .modal");
+  if(!safe){ _otherTab=true; updateWarnBar(); return; }
+  clearTimeout(_adoptTimer);   // 相手が連打している間は最後の1回だけ取り込む
+  _adoptTimer=setTimeout(()=>{
+    const wasId=state.currentId;
+    state={ projects:v.projects||[], currentId:v.currentId||null, data:v.data||{} };
+    _keyStrs=loadKeyStrs(); for(const k of Object.keys(_keyCache)) delete _keyCache[k];   // 鍵も取り直す
+    partitionLocked();
+    unlockAvailable().then(()=>{
+      applyTabVis(); renderAll();
+      if(state.currentId!==wasId) startLiveSync();   // 作品が変わったら購読も張り替える
+    });
+  }, 400);
+});
 const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const TAB_ID = uid();   // このタブの印。保存に混ぜて「誰が書いたか」を見分ける
 
 function emptyProjectData(){ return { characters:[], plot:{structure:"kishoutenketsu",cards:[],chapters:[]}, world:[], relations:[], timeline:[], manuscript:{chapters:[]}, scenario:{scenes:[],vars:[]}, memos:[], tabVis:{}, charTemplate:null }; }
 // キャラの項目テンプレート（作品ごと）。null/未設定なら既定の6項目。空配列なら「項目なしで作る」
@@ -790,7 +874,32 @@ function upsell(kind){ const n=LIMITS[kind], l=LIMIT_LABEL[kind]||kind;
   upsellModal("体験版の上限です", `体験版では${esc(l)}は <b>${n}</b> までです。<br><b>Discordでログイン</b>するとフル機能＋クラウド保存が使えます。`); }
 
 
-function renderAll(){ renderProjectBar(); renderView(); updatePresenceBar(); }
+function renderAll(){ renderProjectBar(); renderView(); updatePresenceBar(); updateWarnBar(); }
+// ログアウト中に共有作品を編集すると、再ログイン時にクラウド側の内容で上書きされる。
+// 気づかずに書き続けるのが一番まずいので、その間ずっと帯を出しておく。
+function updateWarnBar(){
+  const bar=document.getElementById("warnBar"); if(!bar) return;
+  const p=curProject();
+  const msgs=[];
+  if(_otherTab) msgs.push({ k:"tab",
+    html:`<span><b>別のタブでもこの作品を編集しています。</b>このままだと、どちらか片方の変更しか残りません。`
+       + `<br><span class="muted">使わない方のタブを閉じてください。閉じたあと、残した方で再読み込みすると確実です。</span></span>`
+       + `<div class="spacer" style="flex:1"></div><button class="btn" id="warnReload">再読み込み</button>` });
+  if(p && p.shared && !fbUser) msgs.push({ k:"out",
+    html:`<span><b>ログアウト中です。</b>この作品は共同編集中のため、ここでの変更はクラウドに送られません。`
+       + `<br><span class="muted">このまま編集して再ログインすると、クラウド側の内容で上書きされて失われます。</span></span>`
+       + `<div class="spacer" style="flex:1"></div>`
+       + (fbAuth?`<button class="btn primary" id="warnLogin">ログイン</button>`:``) });
+  if(!msgs.length){ bar.hidden=true; bar.innerHTML=""; bar.dataset.sig=""; return; }   // 中身を消したので印もリセット
+  const sig=msgs.map(m=>m.k).join(",")+"|"+(p?p.id:"");
+  if(bar.dataset.sig!==sig){
+    bar.dataset.sig=sig;
+    bar.innerHTML=msgs.map(m=>`<div class="warn-row">${m.html}</div>`).join("");
+    const rl=bar.querySelector("#warnReload"); if(rl) rl.onclick=()=>location.reload();
+    const lg=bar.querySelector("#warnLogin");  if(lg) lg.onclick=()=>loginDiscord();
+  }
+  bar.hidden=false;
+}
 function renderView(){
   const main=document.getElementById("main");
   if(!curProject()){
@@ -1838,6 +1947,7 @@ function insertRubyModal(){
 }
 let _bodySaveTimer=null;
 function scheduleBodySave(chId){
+  _tabClean=false;   // 600ms後に保存するまでの間も「未保存の編集あり」。他タブの取り込みに消されないように
   clearTimeout(_bodySaveTimer);
   _bodySaveTimer=setTimeout(()=>{ saveLocal(); queueChapterSync(state.currentId, chId); msHeadCount(); renderChapterList(); }, 600);
 }
@@ -2536,7 +2646,8 @@ function openMenu(){
       <button class="menu-item" id="mRename">作品名を変更</button>
       ${gate(isFull(), "mExport", "この作品をエクスポート")}
       ${(p.encrypted&&_keyStrs[p.id])?`<button class="menu-item" id="mShowKey">復元キーを表示</button>`:""}
-      ${gate(!!fbUser, "mShare", p.shared?"共同編集を管理":"共同編集を始める")}
+      ${p.shared ? gate(!!fbUser, "mShare", "共同編集を管理")           /* 抜ける・共有解除は塞がない */
+                 : gate(isFull() && !!fbUser, "mShare", "共同編集を始める")}
       <div class="menu-sep"></div>
       <div class="menu-label">表示するタブ（この作品）</div>
       ${TABS.map(([v,label])=>`<label class="menu-tog"><span>${label}</span><span class="sw"><input type="checkbox" data-tab="${v}" ${isTabVisible(v)?"checked":""}><span></span></span></label>`).join("")}
@@ -2648,6 +2759,7 @@ function shareLink(p){
 // この作品を共有化（works/{id} へ移動＋所有権付与）→ 共有リンクを表示
 async function shareProject(p){
   if(!fbUser){ noticeModal("ログインが必要です", '共同編集はクラウド保存を使うため、ログインが必要です。<br><span class="muted">☰メニューから「Discordでログイン」してください。</span>'); return; }
+  if(!isFull()){ upsellModal("支援者限定の機能です", '共同編集は支援者限定です。<br><span class="muted">Discordで支援者ロールが付いたアカウントでログインしてください。</span>'); return; }
   if(p.encrypted){ const key=await getKey(p.id); if(!key){ noticeModal("ロック中です", 'この作品は暗号化されています。<br><span class="muted">先にロックを解除してから共有してください。</span>'); return; } }
   const prev = { shared:p.shared, ownerUid:p.ownerUid, members:p.members, inviteOpen:p.inviteOpen };
   p.shared=true; p.ownerUid=fbUser.uid; p.members=[fbUser.uid]; p.inviteOpen=true;
@@ -2797,16 +2909,23 @@ const DISCORD_REDIRECT_URI = location.origin + "/";   // ← Discord Developer P
 function acctName(){ return (fbUser&&fbUser.displayName) || fbName || "支援者"; }
 
 function initFirebase(){
-  if(typeof firebase === "undefined"){ console.warn("[Fabula] Firebase SDK未読込。ローカルモードで動作します。"); updateAuthChip(); return; }
+  // URLの後始末はFirebaseの有無と無関係に必ずやる（SDKが落ちている時に鍵をURLに残さない）
+  handleJoinLink();            // #join=... を退避（ログイン後に処理）
+  if(typeof firebase === "undefined"){
+    console.warn("[Fabula] Firebase SDK未読込。ローカルモードで動作します。");
+    updateAuthChip();
+    handleDiscordRedirect();   // ?code= を消して「オンライン接続が必要」と伝える
+    resolvePendingJoin();      // URLから消した招待を握りつぶさない（ログインが要る旨を出す）
+    return;
+  }
   try{
     firebase.initializeApp(firebaseConfig);
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
     try{ fbFunctions = firebase.app().functions("asia-northeast1"); }catch(e){ fbFunctions=null; }
     fbAuth.onAuthStateChanged(onAuthChanged);
-    handleJoinLink();          // #join=... を退避（ログイン後に処理）
-    handleDiscordRedirect();   // ?code=... で戻ってきたら処理
   }catch(e){ console.warn("[Fabula] Firebase初期化失敗:", e); }
+  handleDiscordRedirect();     // ?code=... で戻ってきたら処理（fbFunctions が無ければ中で案内を出す）
   updateAuthChip();
 }
 // Discordの認可画面へ送る（戻りは ?code=... でこのページに返る）
@@ -3094,7 +3213,7 @@ function startLiveSync(){
   _liveUnsub.push(wref.collection("presence").onSnapshot(ps=>onPresenceSnap(id,ps), e=>console.warn("[Fabula] live presence:", e)));
   startPresence(id);
 }
-function stopLiveSync(){ _liveUnsub.forEach(u=>{ try{ u(); }catch(e){} }); _liveUnsub=[]; stopPresence(); _presence=[]; updatePresenceBar(); }
+function stopLiveSync(){ _liveUnsub.forEach(u=>{ try{ u(); }catch(e){} }); _liveUnsub=[]; stopPresence(); _presence=[]; updatePresenceBar(); updateWarnBar(); }
 
 // 作品本体（原稿本文以外＋章の目次）のリモート変更を反映。自分のエコー/編集中は上書きしない。
 async function onWorkSnap(id, snap){
@@ -3256,6 +3375,13 @@ if(!state.currentId && state.projects[0]) state.currentId=state.projects[0].id;
 renderAll();
 unlockAvailable();   // 鍵を持つ暗号化作品を起動時に復号
 initFirebase();
+if(_loadBroken) noticeModal("保存データを読み込めませんでした",
+  'この端末に保存されていたデータを読み取れませんでした。<br>'
+  + (_loadBroken==="saved"
+      ? '<span class="muted">壊れた可能性があるため、上書きせずに別の場所（fabula:v1.broken）へ退避しました。'
+        + 'ログイン済みであればクラウドから復帰します。</span>'
+      : '<b>退避もできませんでした（保存領域がいっぱいの可能性）。</b><br>'
+        + '<span class="muted">このまま編集すると元のデータは失われます。先にブラウザの保存領域を空けてください。</span>'));
 </script>
 </body>
 </html>

@@ -1,0 +1,12 @@
+{
+  "name": "fabula-firestore-rules-test",
+  "private": true,
+  "version": "1.0.0",
+  "description": "firestore.rules の検証（Firestoreエミュレータ）",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project fabula-rules-test --config ../../firebase.json \"node rules.test.js\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1"
+  }
+}
