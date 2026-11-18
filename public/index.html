@@ -2713,9 +2713,10 @@ function deleteProjectNow(p){
   const delId=p.id;
   // 削除先はログイン時だけ必要（未ログインで projectsCol() を呼ぶと fbUser が null で落ちる）
   const ref = (fbUser && fbDb) ? (p.shared ? worksCol().doc(delId) : projectsCol().doc(delId)) : null;
+  stopLiveSync();                      // 消す作品の購読を先に切る（削除の通知を自分で受けて二重処理しない）
   forgetProject(delId);
   save(); if(ref) deleteRemote(delId, ref);
-  closeModal(); renderAll();
+  closeModal(); renderAll(); startLiveSync();   // 次に選ばれた作品が共有なら購読し直す
 }
 // 単純なお知らせ（alertの置き換え）
 function noticeModal(title, msgHtml){
@@ -2786,9 +2787,12 @@ async function unshareProject(p){
       await pref.set(doc);
       await pushChapters(p.id, pref.collection("chapters"));
     }
+    // ライブ同期は works を消す「前」に止める。付けたままだと、自分で消した works の
+    // onSnapshot が「オーナーに削除された」と誤認して手元の作品まで消してしまう（章も同様）。
+    stopLiveSync();
     await deleteRemote(p.id, worksCol().doc(p.id));        // works 側を削除
     p.shared=false; p.ownerUid=null; p.members=null; p.inviteOpen=true;
-    stopLiveSync(); saveLocal(); closeModal(); renderAll();
+    saveLocal(); closeModal(); renderAll();
   }catch(e){ noticeModal("共有解除に失敗しました", escBr(e.message||e)); }
 }
 // 共有作品から抜ける（member）

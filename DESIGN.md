@@ -108,6 +108,12 @@ works/{workId}/presence/{uid}                 // 誰が開いているか（共�
 - **リアルタイム**: 既定は「開いたら最新(load-on-open)」。**共有作品では onSnapshot でリアルタイム反映**
 - 衝突: **last-writer-wins**（章/シーン単位のdocで衝突しにくい）
 - 除名: 非暗号は権限剥奪で即時。（暗号作品は鍵ローテが要る＝v1対象外）
+- **罠: 自分で `works/{id}` を消す時は、先に `stopLiveSync()`**。
+  購読したまま消すと自分の `onSnapshot` が `!snap.exists` を拾い、「オーナーに削除された」経路に入って
+  手元の作品まで `forgetProject()` される（共有をやめる＝データはクラウドのprivate側に残るので再読込で戻るが、
+  画面からは消えて見える）。`unshareProject` / `deleteProjectNow` の両方で先に止めている
+- 共有をやめた時、協力者側には「オーナーによって削除されました」と出る。
+  works doc が消えたことしか分からないので、削除と解除は相手からは区別できない（v1はこの文言のまま）
 - 費用: 小規模なら無料枠（読取5万/書込2万/日）に届かず誤差
 
 ---
@@ -158,10 +164,15 @@ works/{workId}/presence/{uid}                 // 誰が開いているか（共�
 - **P2（完了）**: 体験版制限（ソフト）→ 詳細は §6
 - **P3（完了）**: E2E（作品別・単独）
   - 作成時フラグ、対称鍵(AES-GCM-256)、暗号化/復号、復元キーの表示/入力、鍵キャッシュ、🔒表示
-- **P4（コードは実装済み・**未デプロイ**）**: 共同編集（非暗号作品）
+- **P4（完了・2026-11-18 デプロイ済み）**: 共同編集（非暗号作品）
   - `works/{workId}` ＋ members、共有リンク `#join=<id>&k=<key>`、onSnapshotライブ同期＋presence、章単位で後勝ち
-  - ⚠️ **`firestore.rules` の `works/` ブロックがまだデプロイされていない**ため本番では共有が失敗する。
-    `firebase deploy --only firestore:rules` ＋ アカウント2つでの実機確認が残っている
+  - ルール・Functions・Hosting をデプロイし、本番でDiscordログインまで確認済み
+  - 2人での往復は **Auth＋Firestoreエミュレータ**で検証（Discordアカウントが1つしか無いため）。
+    手順: `public/index.html` を複製して `fbAuth.useEmulator`/`fbDb.useEmulator` を足し、
+    署名なしカスタムトークン（`{"alg":"none"}`＋`uid`/`claims.supporter`）でAuthエミュレータにログイン。
+    **別オリジン（127.0.0.1:8744 と :8745）**で開くとlocalStorageが分かれて2ユーザーを再現できる。
+    ⚠️ `firebase.json` の `firestore.rules` に絶対パスを書くと**設定ファイルからの相対**として解決され、
+    「ルール無し＝全許可」で静かに走る。警告行（rules file ... does not exist）を必ず確認すること
 - **P5（任意・将来）**: 機能ガード厳格化（サーバー配信）／暗号×共同（封筒暗号・鍵ローテ）
 
 ---
