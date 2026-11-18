@@ -415,6 +415,15 @@ syncStateNow()  = off / synced / saving / retrying / offline   // 保持せず�
 - 他の要素は旧位置→新位置へ170msで滑らせる（FLIP。`prefers-reduced-motion` では無し）。
 - 入れ替えで自分のレイアウト位置がずれる分は基準値（`sx/sy`）をずらして補正（しないと1段ずつ取りこぼす）。
 
+### タブのアイコンとアドレスバーの色
+
+- **favicon はインラインSVG（data URI）**。ヘッダーの■と同じ `#0e8c7f` の無地。
+  単一ファイル構成を崩さないため `public/` にアイコンファイルは置かない。
+  未設定だと `/favicon.ico` が hosting の `**` リライトに吸われて **index.html（230KB）を毎回返す**。
+- `theme-color` はライト `#ffffff` / ダーク `#1b1e20`（＝`--surface`。ヘッダーと地続きに見せる）。
+  テーマはOS追従なので `media="(prefers-color-scheme: …)"` の2枚で足りる。
+- `apple-touch-icon`（iOSのホーム画面用180×180 PNG）は未設定。要るならPNGを1枚置く。
+
 ---
 
 ## 12. 未決・要注意メモ

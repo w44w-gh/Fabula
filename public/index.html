@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- タブのアイコン：ヘッダーの■と同じ。外部ファイルを増やさないようインラインSVG。
+     未設定だと /favicon.ico が ** リライトで index.html（230KB）を返してしまう -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230e8c7f'/%3E%3C/svg%3E">
+<!-- スマホのアドレスバー色。ヘッダー（--surface）に合わせる -->
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1e20" media="(prefers-color-scheme: dark)">
 <title>Fabula</title>
 <!-- Firebase SDK (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
